@@ -24,6 +24,7 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.pyc
 MANIFEST
 
 # PyInstaller
@@ -218,3 +219,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+/backend/data
