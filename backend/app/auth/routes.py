@@ -3,16 +3,50 @@ import re
 import secrets
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from ..database import SessionLocal
 from ..models import User
 from ..templates import templates
-from .security import hash_password
+from .security import hash_password, verify_password
 
 router = APIRouter(tags=["Authentication"])
+
+# Используется для проверки времени ответа
+# даже при вводе несуществующего логина
+_DUMMY_HASH = hash_password("dummy-password-for-unknown-user")
+
+
+def get_csrf_token(request: Request) -> str:
+    token = request.session.get("csrf_token")
+
+    if not isinstance(token, str):
+        token = secrets.token_urlsafe(32)
+        request.session["csrf_token"] = token
+
+    return token
+
+
+def render_login(
+    request: Request,
+    error: str | None = None,
+    username: str = "",
+    status_code: int = 200,
+):
+    response = templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "csrf_token": get_csrf_token(request),
+            "error": error,
+            "username": username,
+        },
+        status_code=status_code,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def render_register(
@@ -136,4 +170,118 @@ def register_user(
     return render_register(
         request,
         success="Аккаунт успешно создан! Теперь можно войти.",
+    )
+
+
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return render_login(request)
+
+
+@router.post("/login", response_class=HTMLResponse)
+def login_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    expected = request.session.get("csrf_token")
+
+    if not isinstance(expected, str) or not secrets.compare_digest(
+        csrf_token, expected
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid CSRF token",
+        )
+
+    username = username.strip().lower()
+
+    if len(username) > 32 or len(password) > 128:
+        return render_login(
+            request,
+            error="Неверный логин или пароль",
+            status_code=401,
+        )
+
+    with SessionLocal() as db:
+        user = db.scalar(select(User).where(User.username == username))
+
+        stored_hash = user.password_hash if user is not None else _DUMMY_HASH
+
+        password_valid = verify_password(password, stored_hash)
+
+        if user is None or not password_valid:
+            return render_login(
+                request,
+                error="Неверный логин или пароль",
+                username=username,
+                status_code=401,
+            )
+
+        user_id = user.id
+
+    # Удаляем предыдущие данные сессии
+    request.session.clear()
+    request.session["user_id"] = user_id
+
+    return RedirectResponse(
+        url="/profile",
+        status_code=303,
+    )
+
+
+@router.get("/profile", response_class=HTMLResponse)
+def profile_page(request: Request):
+    user_id = request.session.get("user_id")
+
+    if type(user_id) is not int:
+        return RedirectResponse(
+            url="/login",
+            status_code=303,
+        )
+
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+
+        if user is None:
+            request.session.clear()
+            return RedirectResponse(
+                url="/login",
+                status_code=303,
+            )
+
+        response = templates.TemplateResponse(
+            request,
+            "profile.html",
+            {
+                "user": user,
+                "csrf_token": get_csrf_token(request),
+            },
+        )
+
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
+@router.post("/logout")
+def logout_user(
+    request: Request,
+    csrf_token: str = Form(...),
+):
+    expected = request.session.get("csrf_token")
+
+    if not isinstance(expected, str) or not secrets.compare_digest(
+        csrf_token, expected
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid CSRF token",
+        )
+
+    request.session.clear()
+
+    return RedirectResponse(
+        url="/login",
+        status_code=303,
     )
