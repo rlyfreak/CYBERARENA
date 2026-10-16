@@ -2,7 +2,7 @@ import os
 import re
 import secrets
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from ..database import SessionLocal
 from ..models import User
 from ..templates import templates
+from .dependencies import require_admin
 from .security import hash_password, verify_password
 
 router = APIRouter(tags=["Authentication"])
@@ -220,13 +221,14 @@ def login_user(
             )
 
         user_id = user.id
+        must_change_password = user.must_change_password
 
     # Удаляем предыдущие данные сессии
     request.session.clear()
     request.session["user_id"] = user_id
 
     return RedirectResponse(
-        url="/profile",
+        url="/change-password" if must_change_password else "/profile",
         status_code=303,
     )
 
@@ -248,6 +250,12 @@ def profile_page(request: Request):
             request.session.clear()
             return RedirectResponse(
                 url="/login",
+                status_code=303,
+            )
+
+        if user.must_change_password:
+            return RedirectResponse(
+                url="/change-password",
                 status_code=303,
             )
 
@@ -284,4 +292,96 @@ def logout_user(
     return RedirectResponse(
         url="/login",
         status_code=303,
+    )
+
+
+def render_password_change(
+    request: Request,
+    error: str | None = None,
+    status_code: int = 200,
+):
+    response = templates.TemplateResponse(
+        request,
+        "change_password.html",
+        {
+            "csrf_token": get_csrf_token(request),
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/change-password", response_class=HTMLResponse)
+def change_password_page(request: Request):
+    if type(request.session.get("user_id")) is not int:
+        return RedirectResponse("/login", status_code=303)
+
+    return render_password_change(request)
+
+
+@router.post("/change-password", response_class=HTMLResponse)
+def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    password_confirm: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    expected = request.session.get("csrf_token")
+
+    if not isinstance(expected, str) or not secrets.compare_digest(
+        csrf_token, expected
+    ):
+        raise HTTPException(403, "Invalid CSRF token")
+
+    user_id = request.session.get("user_id")
+
+    if type(user_id) is not int:
+        return RedirectResponse("/login", status_code=303)
+
+    if not 12 <= len(new_password) <= 128:
+        return render_password_change(
+            request,
+            "Новый пароль должен содержать 12–128 символов",
+            400,
+        )
+
+    if new_password != password_confirm:
+        return render_password_change(request, "Пароли не совпадают", 400)
+
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+
+        if user is None:
+            request.session.clear()
+            return RedirectResponse("/login", status_code=303)
+
+        if not verify_password(current_password, user.password_hash):
+            return render_password_change(request, "Неверный текущий пароль", 400)
+
+        if new_password == current_password:
+            return render_password_change(
+                request, "Новый пароль должен отличаться", 400
+            )
+
+        user.password_hash = hash_password(new_password)
+        user.must_change_password = False
+
+        db.commit()
+
+    request.session.clear()
+    request.session["user_id"] = user_id
+
+    return RedirectResponse("/profile", status_code=303)
+
+
+@router.get("/admin", response_class=HTMLResponse)
+def admin_page(
+    user: User = Depends(require_admin),
+):
+    return HTMLResponse(
+        "<h1>CYBERARENA / ADMIN</h1><p>Административный доступ подтверждён.</p>"
     )
