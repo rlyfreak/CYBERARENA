@@ -1,0 +1,30 @@
+name: cyberarena
+
+services:
+  app:
+    build:
+      context: ./backend
+    image: cyberarena-app:dev
+    volumes:
+      - db-data:/code/data
+    networks:
+      - app-net
+    ports:
+      - "127.0.0.1:8000:8000"   # ВРЕМЕННО для проверки, уберём, когда появится nginx
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 512m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  app-net: {}
+
+volumes:
+  db-data: {}
