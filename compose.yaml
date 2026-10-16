@@ -30,6 +30,9 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     image: cyberarena-app:dev
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Задайте ADMIN_PASSWORD в файле .env}
     volumes:
       - db-data:/code/data
     networks:
