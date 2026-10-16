@@ -1,14 +1,14 @@
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 # регистрациямоделлейвsqlalchemyпередсозданиемтаблиц
 from . import models  # noqa: F401
+from .auth.routes import router as auth_router
 from .database import Base, engine
+from .templates import templates
 
 
 @asynccontextmanager
@@ -24,6 +24,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(auth_router)
+
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 
 if not SESSION_SECRET or len(SESSION_SECRET) < 32:
@@ -36,13 +38,6 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
-
-TEMPLATES_DIR = os.getenv(
-    "TEMPLATES_DIR",
-    str(Path(__file__).resolve().parents[2] / "frontend" / "templates"),
-)
-
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 @app.get("/", include_in_schema=False)
