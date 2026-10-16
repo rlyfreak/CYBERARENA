@@ -33,6 +33,7 @@ services:
     environment:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Задайте ADMIN_PASSWORD в файле .env}
+      SESSION_SECRET: ${SESSION_SECRET:?Задайте SESSION_SECRET в файле .env}
     volumes:
       - db-data:/code/data
     networks:

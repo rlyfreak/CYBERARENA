@@ -4,8 +4,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
-from . import models
+# регистрациямоделлейвsqlalchemyпередсозданиемтаблиц
+from . import models  # noqa: F401
 from .database import Base, engine
 
 
@@ -20,6 +22,19 @@ app = FastAPI(
     description="Backend for Cyber Arena API",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+
+if not SESSION_SECRET or len(SESSION_SECRET) < 32:
+    raise RuntimeError("SESSION_SECRET должен содержать минимум 32 символа")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    session_cookie="cyberarena_session",
+    max_age=60 * 60 * 8,
+    same_site="lax",
+    https_only=False,
 )
 
 TEMPLATES_DIR = os.getenv(

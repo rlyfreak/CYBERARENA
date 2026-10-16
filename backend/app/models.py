@@ -1,5 +1,5 @@
-from sqlalchemy import text
 from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -8,11 +8,13 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    func, 
+    func,
+    text,
 )
-from sqlalchemy import Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from .database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -33,9 +35,14 @@ class User(Base):
         server_default=text("CURRENT_TIMESTAMP"),
         nullable=False,
     )
-    submissions: Mapped[list["Submission"]] = relationship(
-        back_populates="user"
+    submissions: Mapped[list["Submission"]] = relationship(back_populates="user")
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
     )
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+
 
 class Challenge(Base):
     __tablename__ = "challenges"
@@ -74,9 +81,8 @@ class Challenge(Base):
         nullable=False,
     )
 
-    submissions: Mapped[list["Submission"]] = relationship(
-        back_populates="challenge"
-    )
+    submissions: Mapped[list["Submission"]] = relationship(back_populates="challenge")
+
 
 class Submission(Base):
     __tablename__ = "submissions"
@@ -100,19 +106,13 @@ class Submission(Base):
         nullable=False,
         default=False,
     )
-    
+
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=text("CURRENT_TIMESTAMP"),
         nullable=False,
     )
 
-    user: Mapped["User"] = relationship(
-        back_populates="submissions"
-    )
+    user: Mapped["User"] = relationship(back_populates="submissions")
 
-    challenge: Mapped["Challenge"] = relationship(
-        back_populates="submissions"
-    )
-
-
+    challenge: Mapped["Challenge"] = relationship(back_populates="submissions")
