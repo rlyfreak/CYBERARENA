@@ -27,7 +27,8 @@ services:
 
   app:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     image: cyberarena-app:dev
     volumes:
       - db-data:/code/data
