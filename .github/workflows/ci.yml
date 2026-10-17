@@ -45,12 +45,12 @@ jobs:
         run: python -m compileall -q backend/app
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
 
       - name: Pytest
         env:
           PYTHONPATH: backend
-          SESSION_SECRET: cyberarena-ci-test-secret-2026
+          SESSION_SECRET: cyberarena-ci-test-secret-2026-strong
           ADMIN_USERNAME: admin
           ADMIN_PASSWORD: TestAdminPass123!
         run: python -m pytest backend/tests -v
@@ -72,7 +72,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
       - name: Start isolated Compose stack
@@ -81,11 +81,17 @@ jobs:
         run: |
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py
+          python scripts/ctf_smoke.py upstream-errors
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check restart app
-          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --wait --wait-timeout 90
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/ctf_smoke.py verify
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check stop lab-web
           python scripts/ctf_smoke.py lab-down
+      - name: Proxy diagnostics on failure
+        if: failure()
+        run: |
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check ps --all
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check logs --no-color --timestamps --tail 100 nginx lab-gateway
       - name: Clean up isolated stack
         if: always()
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check down

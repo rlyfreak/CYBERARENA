@@ -8,5 +8,10 @@
 !backend/tests/**
 !frontend/
 !frontend/**
+!scripts/
+!scripts/ctf_smoke.py
+!.github/
+!.github/workflows/
+!.github/workflows/ci.yml
 **/__pycache__
 **/*.pyc

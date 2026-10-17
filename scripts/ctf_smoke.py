@@ -6,13 +6,18 @@ import http.cookiejar
 import json
 import os
 import re
+import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
+from time import monotonic, sleep
 
 BASE = 'http://127.0.0.1:18080'
+FALLBACK_MESSAGE = 'Учебная лаборатория сейчас недоступна'
+UPSTREAM_ERRORS = (502, 503, 504)
+OUTAGE_WAIT_SECONDS = 20
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -25,8 +30,9 @@ class Browser:
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar), NoRedirect())
 
-    def request(self, path, method='GET', data=None, form=None, csrf=None):
-        headers = {}
+    def request(self, path, method='GET', data=None, form=None, csrf=None,
+                timeout=15, headers=None, parse_json=True):
+        headers = dict(headers or {})
         body = None
         if data is not None:
             body = json.dumps(data).encode()
@@ -38,12 +44,12 @@ class Browser:
             headers['X-CSRF-Token'] = csrf
         request = urllib.request.Request(BASE + path, data=body, method=method, headers=headers)
         try:
-            response = self.opener.open(request, timeout=15)
+            response = self.opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as error:
             response = error
         with response:
-            text = response.read().decode()
-            content = json.loads(text) if 'application/json' in response.headers.get('Content-Type', '') else text
+            text = response.read().decode('utf-8', errors='replace')
+            content = json.loads(text) if parse_json and 'application/json' in response.headers.get('Content-Type', '') else text
             return response.status, content, response.headers
 
     def csrf(self, path='/api/csrf'):
@@ -59,17 +65,93 @@ class Browser:
         })
 
 
+def outage_diagnostics(observations):
+    """Print HTTP evidence and test-only proxy logs; never inspect the working stack."""
+    print('CTF outage verification failed. HTTP observations:', file=sys.stderr, flush=True)
+    print(json.dumps(observations, ensure_ascii=False, indent=2), file=sys.stderr, flush=True)
+    # Direct logs do not require Compose interpolation or any test secrets.
+    commands = [['docker', 'ps', '--all', '--filter',
+                 'label=com.docker.compose.project=cyberarena-ctf-check']]
+    commands += [['docker', 'logs', '--timestamps', '--tail', '100',
+                  f'cyberarena-ctf-check-{service}-1'] for service in ['nginx', 'lab-gateway']]
+    for command in commands:
+        print('Diagnostic: ' + ' '.join(command), file=sys.stderr, flush=True)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8',
+                                    errors='replace', timeout=5, check=False)
+            print(result.stdout, file=sys.stderr)
+            print(result.stderr, file=sys.stderr)
+            if result.returncode:
+                print(f'Diagnostic command exited {result.returncode}', file=sys.stderr)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            print(f'Diagnostic unavailable: {error}', file=sys.stderr)
+
+
+def probe(browser, path, timeout, headers=None):
+    try:
+        status, body, response_headers = browser.request(
+            path, timeout=timeout, headers=headers, parse_json=False,
+        )
+        return {'path': path, 'status': status, 'body': body,
+                'content_type': response_headers.get('Content-Type')}
+    except (OSError, urllib.error.URLError) as error:
+        return {'path': path, 'status': None, 'body': None, 'error': str(error)}
+
+
+def verify_lab_outage(browser, wait_seconds=OUTAGE_WAIT_SECONDS):
+    deadline = monotonic() + wait_seconds
+    observations = []
+    while True:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            break
+        attempt = {}
+        for path in ['/lab/', '/api/health', '/api/leaderboard']:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                break
+            attempt[path] = probe(browser, path, min(5, remaining))
+        observations.append(attempt)
+        lab = attempt.get('/lab/', {})
+        app_available = all(attempt.get(path, {}).get('status') == 200
+                            for path in ['/api/health', '/api/leaderboard'])
+        if not app_available:
+            # Do not heal over an outage of the main application or leaderboard.
+            break
+        if lab.get('status') in UPSTREAM_ERRORS and FALLBACK_MESSAGE in (lab.get('body') or ''):
+            print(json.dumps({'phase': 'lab-down', 'status': lab['status'], 'fallback': True,
+                              'app_available': True, 'attempts': len(observations)}))
+            return
+        remaining = deadline - monotonic()
+        if remaining > 0:
+            sleep(min(0.5, remaining))
+    outage_diagnostics(observations)
+    raise AssertionError(
+        f'Lab fallback not verified within {wait_seconds}s: expected HTTP 502/503/504 '
+        'with the fallback page and HTTP 200 from app and leaderboard; see diagnostics above'
+    )
+
+
+def verify_upstream_errors(browser):
+    observations = []
+    for expected in UPSTREAM_ERRORS:
+        result = probe(browser, f'/lab/{expected}', 5, {'Host': 'ctf-fallback-probe'})
+        observations.append(result)
+        if result['status'] != expected or FALLBACK_MESSAGE not in (result['body'] or ''):
+            outage_diagnostics(observations)
+            raise AssertionError(f'Upstream {expected} did not preserve its status and fallback page')
+    print(json.dumps({'phase': 'upstream-errors', 'statuses': list(UPSTREAM_ERRORS), 'fallback': True}))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('phase', choices=['prepare', 'verify', 'lab-down'])
+    parser.add_argument('phase', choices=['prepare', 'verify', 'lab-down', 'upstream-errors'])
     args = parser.parse_args()
     if args.phase == 'lab-down':
-        browser = Browser()
-        status, page, _ = browser.request('/lab/')
-        assert status == 502 and 'Учебная лаборатория сейчас недоступна' in page
-        assert browser.request('/api/health')[0] == 200
-        assert browser.request('/api/leaderboard')[0] == 200
-        print(json.dumps({'phase': 'lab-down', 'fallback': True, 'app_available': True}))
+        verify_lab_outage(Browser())
+        return
+    if args.phase == 'upstream-errors':
+        verify_upstream_errors(Browser())
         return
     password = os.environ['CTF_CHECK_ADMIN_PASSWORD']
     flag = 'CTF{' + hashlib.sha256((password + 'WEB-01').encode()).hexdigest() + '}'

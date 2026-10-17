@@ -1,5 +1,41 @@
 # Проверки CTF Core
 
+## Исправление CI в PR #8
+
+Исходная проверка остановки лаборатории требовала ровно HTTP 502. Однако
+`proxy_intercept_errors on` и `error_page 502 503 504 /_errors/lab_down.html`
+сохраняют код upstream. На отдельном стенде воспроизведён ответ 504 с правильной
+страницей, который старая проверка отвергала. Фактический статус первого
+неуспешного GitHub-запуска неизвестен: прежняя проверка его не выводила.
+
+Проверка теперь принимает только 502/503/504 с точным текстом штатной страницы.
+Ожидание ограничено 20 секундами; сетевые запросы ограничены оставшимся временем
+и максимумом 5 секунд. При неверном теле или статусе по истечении срока тест
+падает. Ошибка health API или leaderboard не повторяется и немедленно завершает
+проверку с ошибкой. На каждой попытке оба основных endpoint должны отвечать 200.
+
+При ошибке выводятся фактические HTTP-статусы, тела ответов и история наблюдений,
+затем состояние только тестового проекта и последние 100 строк логов nginx и
+lab-gateway. Каждый диагностический вызов Docker ограничен 5 секундами; ошибки
+диагностики не скрывают исходное падение. Прямое чтение Docker-логов не требует
+Compose-подстановки секретов. В CI есть дополнительный шаг диагностики до cleanup.
+
+Только тестовый Compose монтирует `scripts/fixtures/lab-errors.conf` с тремя
+детерминированными upstream-ответами. Фаза `upstream-errors` проверяет реальную
+обработку всех трёх кодов через оба прокси. В рабочем Compose этих маршрутов нет.
+После restart CI использует `up --no-recreate --wait`, чтобы не пересоздавать
+здоровые контейнеры и не менять сетевые адреса во время проверки сохранности.
+
+Короткий SESSION_SECRET в backend-job заменён тестовым значением длиной не менее
+32 символов. Добавлены 15 регрессионных тестов, включая защиту минимальной длины
+CI-секрета, временные переходы, постоянные ошибки и недоступность диагностики.
+Полный повторный Docker-прогон на Python 3.12.15: 105 passed за 42.09 с;
+Ruff и pip check прошли. Сквозной Compose-сценарий и реальная диагностика
+намеренной ошибки fallback также проверены. При остановленном WEB-01 health
+приложения и leaderboard возвращали 200.
+
+Ниже сохранён исходный отчёт о проверке CTF Core.
+
 Проверено 17 октября 2026 года в отдельном Git worktree и отдельном Compose-проекте.
 Рабочий `.env`, том базы и контейнеры проекта `cyberarena` не изменялись.
 Данные smoke-проверок создавались только в `cyberarena-ctf-check` на порту 18080.
@@ -80,8 +116,9 @@ docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend
 docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --build --wait
 python scripts/ctf_smoke.py prepare
 python scripts/ctf_isolation.py
+python scripts/ctf_smoke.py upstream-errors
 docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check restart app
-docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --wait
+docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait
 python scripts/ctf_smoke.py verify
 docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check stop lab-web
 python scripts/ctf_smoke.py lab-down
@@ -95,7 +132,8 @@ docker compose --env-file NUL -f compose.ctf-test.yaml -p cyberarena-ctf-check d
 пароль/SESSION_SECRET или выделить новый проект и адаптировать скрипты.
 
 В CI добавлен отдельный job с теми же Docker-, HTTP- и сетевыми проверками.
-Удалённый CI ещё не запускался: ветка не отправлялась на GitHub.
+Этот исходный отчёт фиксировал локальные проверки до отправки ветки;
+актуальный статус удалённого CI следует смотреть в PR.
 
 ## Оставшееся до демонстрации
 
