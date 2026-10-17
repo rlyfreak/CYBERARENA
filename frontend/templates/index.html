@@ -1,20 +1,4 @@
-<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CYBERARENA</title>
-<style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; }
-  h1 { font-size: 2rem; margin-bottom: .25rem; }
-</style>
-</head>
-<body>
-<h1>CYBERARENA</h1>
-<p>Учебная CTF-платформа. Страница в разработке.</p>
-<ul>
-  <li><a href="/lab/">Учебная лаборатория</a></li>
-  <li><a href="/docs">Документация API</a></li>
-</ul>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block content %}<h1>CYBERARENA</h1><p>Учебная CTF-платформа команды 404клуб.</p>
+<article><h2>Решайте задания. Поднимайтесь в рейтинге.</h2><p>Зарегистрируйтесь, выберите задание и отправьте флаг в формате CTF{...}. Баллы за каждое задание начисляются один раз.</p><a href="/challenges">Открыть каталог →</a></article>
+<p><a href="/lab/">Лаборатория WEB-01</a> · <a href="/docs">Документация API</a></p>{% endblock %}

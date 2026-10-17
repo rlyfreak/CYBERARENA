@@ -1,0 +1,17 @@
+**
+!backend/
+!backend/requirements.txt
+!backend/requirements-dev.txt
+!backend/app/
+!backend/app/**
+!backend/tests/
+!backend/tests/**
+!frontend/
+!frontend/**
+!scripts/
+!scripts/ctf_smoke.py
+!.github/
+!.github/workflows/
+!.github/workflows/ci.yml
+**/__pycache__
+**/*.pyc

@@ -1,0 +1,81 @@
+name: cyberarena-ctf-check
+services:
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "127.0.0.1:18080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/errors:/usr/share/nginx/_errors:ro
+    networks: [app-net]
+    depends_on:
+      app:
+        condition: service_healthy
+      lab-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 64m
+    security_opt: ["no-new-privileges:true"]
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: cyberarena-ctf-check-app:local
+    environment:
+      ADMIN_USERNAME: ctfcheckadmin
+      ADMIN_PASSWORD: ${CTF_CHECK_ADMIN_PASSWORD:?Set test-only password in process environment}
+      SESSION_SECRET: ${CTF_CHECK_SESSION_SECRET:?Set test-only secret in process environment}
+    volumes:
+      - ctf-check-db:/code/data
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    mem_limit: 512m
+    cpus: 1.0
+    security_opt: ["no-new-privileges:true"]
+  lab-gateway:
+    image: nginx:stable-alpine
+    volumes:
+      - ./nginx/lab-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./scripts/fixtures/lab-errors.conf:/etc/nginx/conf.d/fallback-probe.conf:ro
+    networks: [app-net, lab-net]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/gateway-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 64m
+    cpus: 0.25
+    security_opt: ["no-new-privileges:true"]
+  lab-web:
+    build:
+      context: ./labs/web-01
+    image: cyberarena-ctf-check-lab:local
+    networks: [lab-net]
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+networks:
+  app-net: {}
+  lab-net:
+    internal: true
+volumes:
+  ctf-check-db: {}

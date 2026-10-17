@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}История попыток | CYBERARENA{% endblock %}
+{% block content %}<h1>{% if admin %}Все попытки{% else %}Мои попытки{% endif %}</h1><p class="muted">Время указано в UTC. Отправленные флаги не сохраняются.</p>
+<div class="scroll"><table><thead><tr><th>Время UTC</th>{% if admin %}<th>Участник</th>{% endif %}<th>Задание</th><th>Результат</th></tr></thead><tbody>
+{% set labels = {'correct':'Верно', 'incorrect':'Неверно', 'already_solved':'Уже решено', 'invalid_format':'Неверный формат'} %}
+{% for attempt in attempts %}<tr><td>{{ attempt.submitted_at }}</td>{% if admin %}<td>{{ attempt.username }}</td>{% endif %}<td>{{ attempt.code or attempt.title }}</td><td>{{ labels.get(attempt.result, attempt.result) }}</td></tr>
+{% else %}<tr><td colspan="4">Попыток пока нет.</td></tr>{% endfor %}</tbody></table></div>
+{% set count = attempts|length %}{% include 'pagination.html' %}{% endblock %}

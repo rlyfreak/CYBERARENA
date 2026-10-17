@@ -1,9 +1,8 @@
 import os
 import re
 import secrets
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -11,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from ..database import SessionLocal
 from ..models import User
 from ..templates import templates
-from .dependencies import require_admin
+from .csrf import get_csrf_token, validate_csrf
 from .login_throttle import (
     blocked_for,
     record_failure,
@@ -29,16 +28,6 @@ router = APIRouter(tags=["Authentication"])
 # Используется для проверки времени ответа
 # даже при вводе несуществующего логина
 _DUMMY_HASH = hash_password("dummy-password-for-unknown-user")
-
-
-def get_csrf_token(request: Request) -> str:
-    token = request.session.get("csrf_token")
-
-    if not isinstance(token, str):
-        token = secrets.token_urlsafe(32)
-        request.session["csrf_token"] = token
-
-    return token
 
 
 def render_login(
@@ -84,11 +73,7 @@ def render_register(
     username: str = "",
     status_code: int = 200,
 ):
-    token = request.session.get("csrf_token")
-
-    if not token:
-        token = secrets.token_urlsafe(32)
-        request.session["csrf_token"] = token
+    token = get_csrf_token(request)
 
     response = templates.TemplateResponse(
         request,
@@ -117,15 +102,9 @@ def register_user(
     username: str = Form(...),
     password: str = Form(...),
     password_confirm: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
-    expected = request.session.get("csrf_token")
-
-    if not expected or not secrets.compare_digest(csrf_token, expected):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid CSRF token",
-        )
+    validate_csrf(request, csrf_token)
 
     username = username.strip().lower()
 
@@ -211,17 +190,9 @@ def login_user(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
-    expected = request.session.get("csrf_token")
-
-    if not isinstance(expected, str) or not secrets.compare_digest(
-        csrf_token, expected
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid CSRF token",
-        )
+    validate_csrf(request, csrf_token)
 
     username = username.strip().lower()
 
@@ -319,17 +290,9 @@ def profile_page(request: Request):
 @router.post("/logout")
 def logout_user(
     request: Request,
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
-    expected = request.session.get("csrf_token")
-
-    if not isinstance(expected, str) or not secrets.compare_digest(
-        csrf_token, expected
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid CSRF token",
-        )
+    validate_csrf(request, csrf_token)
 
     with SessionLocal() as db:
         revoke_session(request, db)
@@ -376,14 +339,9 @@ def change_password(
     current_password: str = Form(...),
     new_password: str = Form(...),
     password_confirm: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
-    expected = request.session.get("csrf_token")
-
-    if not isinstance(expected, str) or not secrets.compare_digest(
-        csrf_token, expected
-    ):
-        raise HTTPException(403, "Invalid CSRF token")
+    validate_csrf(request, csrf_token)
 
     user_id = request.session.get("user_id")
 
@@ -426,12 +384,3 @@ def change_password(
         )
 
     return RedirectResponse("/profile", status_code=303)
-
-
-@router.get("/admin", response_class=HTMLResponse)
-def admin_page(
-    user: Annotated[User, Depends(require_admin)],
-):
-    return HTMLResponse(
-        "<h1>CYBERARENA / ADMIN</h1><p>Административный доступ подтверждён.</p>"
-    )

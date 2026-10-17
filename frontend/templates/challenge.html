@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}{{ task.title }} | CYBERARENA{% endblock %}
+{% block content %}<h1>{{ task.code or '' }} — {{ task.title }}</h1><p>{{ task.category }} · {{ task.points }} баллов</p>
+<article class="description">{{ task.description }}</article>
+{% if task.code == 'WEB-01' %}<p><a href="/lab/" target="_blank" rel="noopener">Открыть лабораторию WEB-01</a></p>{% endif %}
+{% if message %}<p role="status" class="message">{{ message }}</p>{% endif %}
+{% if task.solved %}<p>✓ Задание решено. Баллы за него начисляются один раз.</p>{% else %}
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label>Флаг <input type="password" name="flag" required minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="off"></label><button>Проверить флаг</button></form>{% endif %}
+<p><a href="/challenges">← Каталог</a></p>{% endblock %}
