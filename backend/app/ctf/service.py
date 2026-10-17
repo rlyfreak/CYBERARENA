@@ -318,3 +318,17 @@ def reset_results(expected_generation):
         state.generation += 1
         return {"solves_deleted": solves, "attempts_deleted": attempts, "generation": state.generation}
     return write(reset)
+
+
+def seed_case():
+    """Create unpublished case drafts; never invent or publish playable labs."""
+    def seed(db):
+        existing = set(db.scalars(select(Challenge.code)))
+        for code, points in CASE_POINTS.items():
+            if code not in existing:
+                db.add(Challenge(
+                    code=code, title=code, category=code.split('-')[0], points=points,
+                    description='Черновик кейса. Добавьте условие, материалы и флаг перед публикацией.',
+                    flag_hash='', is_published=False,
+                ))
+    write(seed)

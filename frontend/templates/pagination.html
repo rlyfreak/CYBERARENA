@@ -1,0 +1,4 @@
+<div class="pagination">
+{% if offset > 0 %}<a href="{{ request.url.include_query_params(offset=(offset-limit if offset >= limit else 0)) }}">← Предыдущая страница</a>{% endif %}
+{% if count == limit %}<a href="{{ request.url.include_query_params(offset=offset+limit) }}">Следующая страница →</a>{% endif %}
+</div>

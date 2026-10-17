@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Редактор задания | CYBERARENA{% endblock %}
+{% block content %}<h1>{{ 'Редактирование: ' ~ (task.code or task.title) if task else 'Новое задание' }}</h1>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+{% if task %}<input type="hidden" name="expected_revision" value="{{ task.revision }}">{% else %}<label>Код <input name="code" required maxlength="32" placeholder="WEB-03" pattern="[A-Z][A-Z0-9_-]{1,31}"></label>{% endif %}
+<label>Название <input name="title" required maxlength="150" value="{{ task.title if task else '' }}"></label>
+<label>Категория <input name="category" required maxlength="50" value="{{ task.category if task else '' }}"></label>
+<label>Баллы <input type="number" name="points" required min="1" max="10000" value="{{ task.points if task else 100 }}"></label>
+<label>Условие и материалы <textarea name="description" required maxlength="20000">{{ task.description if task else '' }}</textarea></label>
+<label>{{ 'Новый флаг (пустое поле сохранит текущий)' if task else 'Флаг' }} <input type="password" name="flag" {% if not task %}required{% endif %} minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="new-password"></label>
+<label><input type="checkbox" name="is_published" {% if task and task.is_published %}checked{% endif %}> Опубликовать</label>
+<p class="muted">Снятие галочки скроет задание. Ранее заработанные баллы сохранятся.</p><button>Сохранить</button></form>
+<p><a href="/admin">← Управление</a></p>{% endblock %}

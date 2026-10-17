@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import models  # noqa: F401
 from .auth.bootstrap import bootstrap_admin
 from .auth.routes import router as auth_router
+from .ctf.pages import router as ctf_pages
 from .ctf.routes import router as ctf_router
 from .ctf.service import CtfError
 from .migrations.ctf_core import migrate as migrate_ctf_core
@@ -34,6 +35,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(ctf_router)
+app.include_router(ctf_pages)
 
 
 @app.exception_handler(CtfError)
@@ -41,6 +43,11 @@ async def ctf_error(request: Request, error: CtfError):
     headers = {"Cache-Control": "no-store"}
     if error.retry_after is not None:
         headers['Retry-After'] = str(error.retry_after)
+    if not request.url.path.startswith('/api/'):
+        return templates.TemplateResponse(
+            request, 'ctf_error.html', {'message': error.message, 'user': None},
+            status_code=error.status, headers=headers,
+        )
     return JSONResponse({"detail": error.message}, status_code=error.status, headers=headers)
 
 

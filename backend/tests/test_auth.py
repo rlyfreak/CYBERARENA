@@ -89,6 +89,12 @@ def sandbox(monkeypatch):
     monkeypatch.setattr(routes, "SessionLocal", TestingSession)
     monkeypatch.setattr(bootstrap, "SessionLocal", TestingSession)
     monkeypatch.setattr(dependencies, "SessionLocal", TestingSession)
+    from app.ctf import service
+    from app.models import CtfState
+
+    monkeypatch.setattr(service, "SessionLocal", TestingSession)
+    with TestingSession.begin() as db:
+        db.add(CtfState(id=1, generation=0))
     monkeypatch.setattr(
         login_throttle,
         "SessionLocal",

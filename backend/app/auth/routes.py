@@ -1,9 +1,8 @@
 import os
 import re
 import secrets
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +11,6 @@ from ..database import SessionLocal
 from ..models import User
 from ..templates import templates
 from .csrf import get_csrf_token, validate_csrf
-from .dependencies import require_admin
 from .login_throttle import (
     blocked_for,
     record_failure,
@@ -388,10 +386,3 @@ def change_password(
     return RedirectResponse("/profile", status_code=303)
 
 
-@router.get("/admin", response_class=HTMLResponse)
-def admin_page(
-    user: Annotated[User, Depends(require_admin)],
-):
-    return HTMLResponse(
-        "<h1>CYBERARENA / ADMIN</h1><p>Административный доступ подтверждён.</p>"
-    )

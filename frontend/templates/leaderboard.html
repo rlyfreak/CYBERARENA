@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Рейтинг | CYBERARENA{% endblock %}
+{% block content %}<h1>Таблица лидеров</h1><p>При равных баллах выше участник, раньше завершивший последнее успешное решение. Время — UTC.</p>
+<div class="scroll"><table><thead><tr><th>Место</th><th>Участник</th><th>Баллы</th><th>Последнее решение UTC</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.rank }}</td><td>{{ row.username }}</td><td>{{ row.points }}</td><td>{{ row.last_solve_at or '—' }}</td></tr>{% else %}<tr><td colspan="4">Участников пока нет.</td></tr>{% endfor %}</tbody></table></div>
+{% set count = rows|length %}{% include 'pagination.html' %}{% endblock %}
