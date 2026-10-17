@@ -24,6 +24,44 @@ ADMIN_PASSWORD = "TestAdminPass123!"
 NEW_ADMIN_PASSWORD = "NewAdminPass456!"
 
 
+@pytest.mark.parametrize("token", [None, "", "тест", "x" * 129, "wrong"])
+@pytest.mark.parametrize("path", ["/register", "/login", "/logout", "/change-password"])
+def test_malformed_csrf_rejected_without_mutation(sandbox, token, path):
+    client, factory = sandbox
+    register(client)
+    assert login(client, "testplayer", USER_PASSWORD).status_code == 303
+    data = {
+        "username": "otherplayer",
+        "password": USER_PASSWORD,
+        "password_confirm": USER_PASSWORD,
+        "current_password": USER_PASSWORD,
+        "new_password": "ReplacementPass456!",
+    }
+    if token is not None:
+        data["csrf_token"] = token
+    assert client.post(path, data=data).status_code == 403
+    assert client.get("/profile").status_code == 200
+    with factory() as db:
+        users = db.scalars(select(User)).all()
+        assert len(users) == 1
+        assert verify_password(USER_PASSWORD, users[0].password_hash)
+
+
+@pytest.mark.parametrize("stored", [None, 123, [], "тест", "x" * 129])
+def test_invalid_stored_csrf_is_rejected_and_replaced(stored):
+    from app.auth.csrf import get_csrf_token, validate_csrf
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    request = Request({"type": "http", "session": {"csrf_token": stored}})
+    with pytest.raises(HTTPException) as error:
+        validate_csrf(request, "valid-ascii")
+    assert error.value.status_code == 403
+    token = get_csrf_token(request)
+    assert token.isascii() and len(token) == 43
+    validate_csrf(request, token)
+
+
 @pytest.fixture
 def sandbox(monkeypatch):
     """Отдельная SQLite-база для каждого теста."""
