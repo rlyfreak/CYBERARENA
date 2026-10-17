@@ -1,6 +1,7 @@
 import os
 import re
 import secrets
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -380,7 +381,7 @@ def change_password(
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(
-    user: User = Depends(require_admin),
+    user: Annotated[User, Depends(require_admin)],
 ):
     return HTMLResponse(
         "<h1>CYBERARENA / ADMIN</h1><p>Административный доступ подтверждён.</p>"
