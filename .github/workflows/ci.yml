@@ -1,0 +1,56 @@
+name: CYBERARENA CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: Backend / Python 3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements-dev.txt
+          python -m pip check
+
+      - name: Check Python syntax
+        run: python -m compileall -q backend/app
+
+      - name: Ruff lint
+        run: python -m ruff check backend/app backend/tests
+
+      - name: Pytest
+        env:
+          PYTHONPATH: backend
+          SESSION_SECRET: cyberarena-ci-test-secret-2026
+          ADMIN_USERNAME: admin
+          ADMIN_PASSWORD: TestAdminPass123!
+        run: python -m pytest backend/tests -v
