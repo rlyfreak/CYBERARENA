@@ -520,3 +520,76 @@ def test_concurrent_login_failures_are_atomic(
 
     finally:
         test_engine.dispose()
+
+
+def test_logout_revokes_captured_cookie(sandbox):
+    client, _ = sandbox
+
+    register(client)
+
+    assert login(client, "testplayer", USER_PASSWORD).status_code == 303
+
+    token = get_csrf(client, "/profile")
+
+    captured_cookie = client.cookies.get("cyberarena_session")
+    assert captured_cookie is not None
+
+    response = client.post(
+        "/logout",
+        data={"csrf_token": token},
+    )
+    assert response.status_code == 303
+
+    # Имитируем восстановление ранее украденной cookie.
+    client.cookies.set(
+        "cyberarena_session",
+        captured_cookie,
+    )
+
+    response = client.get("/profile")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+    assert client.get("/admin").status_code == 401
+
+
+def test_password_change_revokes_old_sessions(sandbox):
+    client, _ = sandbox
+
+    bootstrap.bootstrap_admin()
+
+    assert login(client, "admin", ADMIN_PASSWORD).status_code == 303
+
+    old_cookie = client.cookies.get("cyberarena_session")
+    assert old_cookie is not None
+
+    token = get_csrf(client, "/change-password")
+
+    response = client.post(
+        "/change-password",
+        data={
+            "current_password": ADMIN_PASSWORD,
+            "new_password": NEW_ADMIN_PASSWORD,
+            "password_confirm": NEW_ADMIN_PASSWORD,
+            "csrf_token": token,
+        },
+    )
+
+    assert response.status_code == 303
+    assert client.get("/admin").status_code == 200
+
+    # Старый идентификатор больше не действителен.
+    second_client = TestClient(
+        app,
+        follow_redirects=False,
+    )
+
+    try:
+        second_client.cookies.set(
+            "cyberarena_session",
+            old_cookie,
+        )
+
+        assert second_client.get("/admin").status_code == 401
+    finally:
+        second_client.close()

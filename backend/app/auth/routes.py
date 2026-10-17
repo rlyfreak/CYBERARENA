@@ -18,6 +18,11 @@ from .login_throttle import (
     reset_failures,
 )
 from .security import hash_password, verify_password
+from .session_store import (
+    get_session_user,
+    issue_session,
+    revoke_session,
+)
 
 router = APIRouter(tags=["Authentication"])
 
@@ -263,8 +268,8 @@ def login_user(
     reset_failures(username)
 
     # Удаляем предыдущие данные сессии
-    request.session.clear()
-    request.session["user_id"] = user_id
+    with SessionLocal() as db:
+        issue_session(request, db, user_id)
 
     return RedirectResponse(
         url="/change-password" if must_change_password else "/profile",
@@ -283,7 +288,7 @@ def profile_page(request: Request):
         )
 
     with SessionLocal() as db:
-        user = db.get(User, user_id)
+        user = get_session_user(request, db)
 
         if user is None:
             request.session.clear()
@@ -326,7 +331,8 @@ def logout_user(
             detail="Invalid CSRF token",
         )
 
-    request.session.clear()
+    with SessionLocal() as db:
+        revoke_session(request, db)
 
     return RedirectResponse(
         url="/login",
@@ -355,8 +361,11 @@ def render_password_change(
 
 @router.get("/change-password", response_class=HTMLResponse)
 def change_password_page(request: Request):
-    if type(request.session.get("user_id")) is not int:
-        return RedirectResponse("/login", status_code=303)
+    with SessionLocal() as db:
+        user = get_session_user(request, db)
+        if user is None:
+            request.session.clear()
+            return RedirectResponse("/login", status_code=303)
 
     return render_password_change(request)
 
@@ -392,7 +401,7 @@ def change_password(
         return render_password_change(request, "Пароли не совпадают", 400)
 
     with SessionLocal() as db:
-        user = db.get(User, user_id)
+        user = get_session_user(request, db)
 
         if user is None:
             request.session.clear()
@@ -409,10 +418,12 @@ def change_password(
         user.password_hash = hash_password(new_password)
         user.must_change_password = False
 
-        db.commit()
-
-    request.session.clear()
-    request.session["user_id"] = user_id
+        issue_session(
+            request,
+            db,
+            user.id,
+            revoke_all=True,
+        )
 
     return RedirectResponse("/profile", status_code=303)
 

@@ -124,3 +124,23 @@ class LoginAttempt(Base):
     failures: Mapped[int] = mapped_column(Integer, nullable=False)
     window_started: Mapped[int] = mapped_column(Integer, nullable=False)
     blocked_until: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    expires_at: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )

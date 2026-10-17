@@ -4,24 +4,17 @@ from fastapi import Depends, HTTPException, Request
 
 from ..database import SessionLocal
 from ..models import User
+from .session_store import get_session_user
 
 
 def get_current_user(request: Request) -> User:
-    user_id = request.session.get("user_id")
-
-    if type(user_id) is not int:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-        )
-
     with SessionLocal() as db:
-        user = db.get(User, user_id)
+        user = get_session_user(request, db)
 
         if user is None:
             raise HTTPException(
                 status_code=401,
-                detail="User not found",
+                detail="Authentication required",
             )
 
         if user.must_change_password:
