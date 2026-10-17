@@ -59,6 +59,8 @@ services:
     build:
       context: ./labs/web-01
     image: cyberarena-ctf-check-lab:local
+    environment:
+      WEB01_FLAG: ${CTF_CHECK_WEB01_FLAG:?Set test-only WEB01 flag}
     networks: [lab-net]
     user: "10001:10001"
     read_only: true

@@ -4,6 +4,7 @@ COPY backend/requirements.txt backend/requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY backend/app ./backend/app
 COPY backend/tests ./backend/tests
+COPY labs/web-01/server.py ./labs/web-01/server.py
 COPY frontend ./frontend
 COPY scripts/ctf_smoke.py ./scripts/ctf_smoke.py
 COPY .github/workflows/ci.yml ./.github/workflows/ci.yml
