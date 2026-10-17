@@ -1,17 +1,23 @@
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
-from . import models
+# регистрациямоделлейвsqlalchemyпередсозданиемтаблиц
+from . import models  # noqa: F401
+from .auth.bootstrap import bootstrap_admin
+from .auth.routes import router as auth_router
 from .database import Base, engine
+from .migrations.user_auth import migrate as migrate_user_auth
+from .templates import templates
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    migrate_user_auth()
     Base.metadata.create_all(bind=engine)
+    bootstrap_admin()
     yield
 
 
@@ -22,12 +28,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-TEMPLATES_DIR = os.getenv(
-    "TEMPLATES_DIR",
-    str(Path(__file__).resolve().parents[2] / "frontend" / "templates"),
-)
+app.include_router(auth_router)
 
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+
+if not SESSION_SECRET or len(SESSION_SECRET) < 32:
+    raise RuntimeError("SESSION_SECRET должен содержать минимум 32 символа")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET,
+    session_cookie="cyberarena_session",
+    max_age=60 * 60 * 8,
+    same_site="lax",
+    https_only=False,
+)
 
 
 @app.get("/", include_in_schema=False)

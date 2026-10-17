@@ -1,0 +1,68 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+    <title>Профиль | CYBERARENA</title>
+    <style>
+        body {
+            background: #111114;
+            color: #f5f5f5;
+            font-family: system-ui, sans-serif;
+            max-width: 700px;
+            margin: 80px auto;
+            padding: 0 20px;
+        }
+        .card {
+            background: #202024;
+            border: 1px solid #45454c;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .label { color: #aaa; }
+        button {
+            background: #a2ff85;
+            border: 0;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        a { color: #a2ff85; }
+    </style>
+</head>
+<body>
+    <h1>CYBERARENA / PROFILE</h1>
+
+    <div class="card">
+        <p class="label">Пользователь</p>
+        <h2>{{ user.username }}</h2>
+
+        <p>
+            Роль:
+            {% if user.is_admin %}
+                Администратор
+            {% else %}
+                Участник
+            {% endif %}
+        </p>
+
+        <p>
+            Дата регистрации:
+            {{ user.created_at }}
+        </p>
+
+        <form action="/logout" method="post">
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token }}"
+            >
+            <button type="submit">Выйти</button>
+        </form>
+    </div>
+
+    <p><a href="/">← На главную</a></p>
+</body>
+</html>
