@@ -15,3 +15,6 @@
 !.github/workflows/ci.yml
 **/__pycache__
 **/*.pyc
+!labs/
+!labs/web-01/
+!labs/web-01/server.py

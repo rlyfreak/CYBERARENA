@@ -59,24 +59,47 @@ jobs:
     name: CTF / Docker, persistence and isolation
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     env:
       CTF_CHECK_ADMIN_PASSWORD: IsolatedCiAdminPassword2026
       CTF_CHECK_SESSION_SECRET: cyberarena-ci-isolated-compose-session-secret-2026
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Build test image
         run: docker build -f backend/Dockerfile.test -t cyberarena-ctf-tests:local .
+
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
           docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
+
+      - name: Configure WEB-01 test flag
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import hashlib
+          import os
+
+          password = os.environ["CTF_CHECK_ADMIN_PASSWORD"]
+          digest = hashlib.sha256(
+              (password + "WEB-01").encode()
+          ).hexdigest()
+
+          print(f"CTF_CHECK_WEB01_FLAG=CTF{{{digest}}}")
+          PY
+
       - name: Start isolated Compose stack
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --build --wait --wait-timeout 90
+
       - name: Verify HTTP flows, persistence and isolation
         run: |
           python scripts/ctf_smoke.py prepare
@@ -87,11 +110,13 @@ jobs:
           python scripts/ctf_smoke.py verify
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check stop lab-web
           python scripts/ctf_smoke.py lab-down
+
       - name: Proxy diagnostics on failure
         if: failure()
         run: |
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check ps --all
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check logs --no-color --timestamps --tail 100 nginx lab-gateway
+
       - name: Clean up isolated stack
         if: always()
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check down
