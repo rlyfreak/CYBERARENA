@@ -343,3 +343,101 @@ def test_login_rate_limit(sandbox, monkeypatch):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/profile"
+
+
+def test_login_invalid_csrf(sandbox):
+    client, _ = sandbox
+
+    register(client)
+
+    response = client.post(
+        "/login",
+        data={
+            "username": "testplayer",
+            "password": USER_PASSWORD,
+            "csrf_token": "invalid-token",
+        },
+    )
+
+    assert response.status_code == 403
+    assert client.get("/profile").status_code == 303
+
+
+def test_logout_invalid_csrf(sandbox):
+    client, _ = sandbox
+
+    register(client)
+    assert login(client, "testplayer", USER_PASSWORD).status_code == 303
+
+    response = client.post(
+        "/logout",
+        data={"csrf_token": "invalid-token"},
+    )
+
+    assert response.status_code == 403
+
+    # Некорректный запрос не должен завершать сессию.
+    assert client.get("/profile").status_code == 200
+
+
+def test_rate_limit_shared_between_browsers(sandbox, monkeypatch):
+    client, _ = sandbox
+
+    register(client)
+
+    monkeypatch.setattr(
+        login_throttle,
+        "_now",
+        lambda: 1_800_000_000,
+    )
+
+    for _ in range(5):
+        response = login(client, "testplayer", "WrongPassword123!")
+
+    assert response.status_code == 429
+
+    # Новый браузер — без cookies предыдущего пользователя.
+    second_client = TestClient(app, follow_redirects=False)
+
+    try:
+        response = login(second_client, "testplayer", USER_PASSWORD)
+
+        assert response.status_code == 429
+    finally:
+        second_client.close()
+
+
+def test_rate_limit_window_resets(sandbox, monkeypatch):
+    client, _ = sandbox
+    register(client)
+
+    now = [1_800_000_000]
+
+    monkeypatch.setattr(login_throttle, "_now", lambda: now[0])
+
+    for _ in range(4):
+        assert login(client, "testplayer", "WrongPassword123!").status_code == 401
+
+    # Окно подсчёта неудачных попыток закончилось.
+    now[0] += 601
+
+    for _ in range(4):
+        assert login(client, "testplayer", "WrongPassword123!").status_code == 401
+
+    assert login(client, "testplayer", "WrongPassword123!").status_code == 429
+
+
+def test_successful_login_resets_failures(sandbox):
+    client, _ = sandbox
+    register(client)
+
+    for _ in range(4):
+        assert login(client, "testplayer", "WrongPassword123!").status_code == 401
+
+    # Правильный пароль сбрасывает счётчик.
+    assert login(client, "testplayer", USER_PASSWORD).status_code == 303
+
+    for _ in range(4):
+        assert login(client, "testplayer", "WrongPassword123!").status_code == 401
+
+    assert login(client, "testplayer", "WrongPassword123!").status_code == 429
