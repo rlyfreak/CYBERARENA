@@ -2,6 +2,7 @@ import os
 import re
 
 import pytest
+from app.auth import login_throttle
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
@@ -48,6 +49,11 @@ def sandbox(monkeypatch):
     monkeypatch.setattr(routes, "SessionLocal", TestingSession)
     monkeypatch.setattr(bootstrap, "SessionLocal", TestingSession)
     monkeypatch.setattr(dependencies, "SessionLocal", TestingSession)
+    monkeypatch.setattr(
+        login_throttle,
+        "SessionLocal",
+        TestingSession,
+    )
 
     monkeypatch.setenv("ADMIN_USERNAME", "admin")
     monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PASSWORD)
@@ -286,3 +292,54 @@ def test_password_change_csrf(sandbox):
 
         assert admin.must_change_password is True
         assert verify_password(ADMIN_PASSWORD, admin.password_hash)
+
+
+def test_login_rate_limit(sandbox, monkeypatch):
+    client, _ = sandbox
+
+    register(client)
+
+    now = [1_800_000_000]
+    monkeypatch.setattr(
+        login_throttle,
+        "_now",
+        lambda: now[0],
+    )
+
+    for _ in range(4):
+        response = login(
+            client,
+            "testplayer",
+            "WrongPassword123!",
+        )
+        assert response.status_code == 401
+
+    response = login(
+        client,
+        "testplayer",
+        "WrongPassword123!",
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "900"
+
+    # Даже верный пароль пока заблокирован.
+    response = login(
+        client,
+        "testplayer",
+        USER_PASSWORD,
+    )
+
+    assert response.status_code == 429
+
+    # Проходит 15 минут и 1 секунда.
+    now[0] += 901
+
+    response = login(
+        client,
+        "testplayer",
+        USER_PASSWORD,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/profile"

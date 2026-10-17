@@ -12,6 +12,11 @@ from ..database import SessionLocal
 from ..models import User
 from ..templates import templates
 from .dependencies import require_admin
+from .login_throttle import (
+    blocked_for,
+    record_failure,
+    reset_failures,
+)
 from .security import hash_password, verify_password
 
 router = APIRouter(tags=["Authentication"])
@@ -48,6 +53,22 @@ def render_login(
         status_code=status_code,
     )
     response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def render_locked_login(
+    request: Request,
+    username: str,
+    retry_after: int,
+):
+    response = render_login(
+        request,
+        error="Слишком много попыток входа. Попробуйте позже.",
+        username=username,
+        status_code=429,
+    )
+
+    response.headers["Retry-After"] = str(retry_after)
     return response
 
 
@@ -206,6 +227,11 @@ def login_user(
             status_code=401,
         )
 
+    retry_after = blocked_for(username)
+
+    if retry_after > 0:
+        return render_locked_login(request, username, retry_after)
+
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.username == username))
 
@@ -214,6 +240,11 @@ def login_user(
         password_valid = verify_password(password, stored_hash)
 
         if user is None or not password_valid:
+            retry_after = record_failure(username)
+
+            if retry_after > 0:
+                return render_locked_login(request, username, retry_after)
+
             return render_login(
                 request,
                 error="Неверный логин или пароль",
@@ -223,6 +254,13 @@ def login_user(
 
         user_id = user.id
         must_change_password = user.must_change_password
+
+    retry_after = blocked_for(username)
+
+    if retry_after > 0:
+        return render_locked_login(request, username, retry_after)
+
+    reset_failures(username)
 
     # Удаляем предыдущие данные сессии
     request.session.clear()

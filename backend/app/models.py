@@ -115,3 +115,12 @@ class Submission(Base):
     user: Mapped["User"] = relationship(back_populates="submissions")
 
     challenge: Mapped["Challenge"] = relationship(back_populates="submissions")
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_started: Mapped[int] = mapped_column(Integer, nullable=False)
+    blocked_until: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
