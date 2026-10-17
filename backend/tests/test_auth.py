@@ -24,6 +24,48 @@ ADMIN_PASSWORD = "TestAdminPass123!"
 NEW_ADMIN_PASSWORD = "NewAdminPass456!"
 
 
+@pytest.mark.parametrize("password", ["", "x" * 11, "x" * 129, "change-me",
+                                     "REPLACE_WITH_YOUR_PASSWORD"])
+def test_bootstrap_rejects_invalid_password_and_public_placeholder(sandbox, monkeypatch, password):
+    _, factory = sandbox
+    monkeypatch.setenv("ADMIN_PASSWORD", password)
+    with pytest.raises(RuntimeError, match="12.*128"):
+        bootstrap.bootstrap_admin()
+    with factory() as db:
+        assert db.scalar(select(User.id)) is None
+
+
+@pytest.mark.parametrize("length", [12, 128])
+def test_bootstrap_accepts_password_length_boundaries(sandbox, monkeypatch, length):
+    _, factory = sandbox
+    monkeypatch.setenv("ADMIN_PASSWORD", "x" * length)
+    bootstrap.bootstrap_admin()
+    with factory() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        assert verify_password("x" * length, admin.password_hash)
+        assert admin.must_change_password
+
+
+def test_bootstrap_does_not_change_existing_passwords_or_sessions(sandbox, monkeypatch):
+    from app.models import AuthSession
+
+    client, factory = sandbox
+    bootstrap.bootstrap_admin()
+    register(client)
+    assert login(client, "testplayer", USER_PASSWORD).status_code == 303
+    with factory() as db:
+        hashes = {user.id: user.password_hash for user in db.scalars(select(User))}
+        sessions = [(row.token_hash, row.user_id, row.expires_at)
+                    for row in db.scalars(select(AuthSession))]
+    monkeypatch.setenv("ADMIN_PASSWORD", "DifferentBootstrapPassword2026")
+    bootstrap.bootstrap_admin()
+    with factory() as db:
+        assert {user.id: user.password_hash for user in db.scalars(select(User))} == hashes
+        assert [(row.token_hash, row.user_id, row.expires_at)
+                for row in db.scalars(select(AuthSession))] == sessions
+    assert client.get("/profile").status_code == 200
+
+
 @pytest.mark.parametrize("token", [None, "", "тест", "x" * 129, "wrong"])
 @pytest.mark.parametrize("path", ["/register", "/login", "/logout", "/change-password"])
 def test_malformed_csrf_rejected_without_mutation(sandbox, token, path):

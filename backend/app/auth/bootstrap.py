@@ -15,7 +15,9 @@ def bootstrap_admin():
     if not re.fullmatch(r"[a-z0-9_]{3,32}", username):
         raise RuntimeError("Недопустимый ADMIN_USERNAME")
 
-    if not 12 <= len(password) <= 128 or password == "change-me":
+    if not 12 <= len(password) <= 128 or password in {
+        "change-me", "REPLACE_WITH_YOUR_PASSWORD",
+    }:
         raise RuntimeError(
             "Задайте безопасный ADMIN_PASSWORD длиной от 12 до 128 символов"
         )
