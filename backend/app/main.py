@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import models  # noqa: F401
 from .auth.bootstrap import bootstrap_admin
 from .auth.routes import router as auth_router
+from .ctf.body_limit import CtfBodyLimit
 from .ctf.pages import router as ctf_pages
 from .ctf.routes import router as ctf_router
 from .ctf.service import CtfError
@@ -77,6 +78,7 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
+app.add_middleware(CtfBodyLimit)
 
 
 @app.get("/", include_in_schema=False)

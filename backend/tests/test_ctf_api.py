@@ -164,3 +164,11 @@ def test_admin_unconfigured_hash_cannot_publish(api):
         'expected_revision': 1, 'is_published': True,
     })
     assert response.status_code == 422
+
+
+def test_streamed_oversized_flag_rejected_without_echo(api):
+    client, _ = api
+    response = client.post('/api/challenges/1/submissions',
+                           content=iter([b'{"flag":"CTF{', b'x' * 5000, b'}"}']),
+                           headers={'Content-Type': 'application/json'})
+    assert response.status_code == 413 and 'CTF{' not in response.text

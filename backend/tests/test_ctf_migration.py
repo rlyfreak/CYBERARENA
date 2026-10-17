@@ -108,3 +108,24 @@ def test_failed_migration_rolls_back_ddl(migration_engine):
     with pytest.raises(RuntimeError, match="Foreign key"):
         ctf_core.migrate(migration_engine)
     assert "result" not in {c['name'] for c in inspect(migration_engine).get_columns('submissions')}
+
+
+def test_actual_lifespan_migrates_legacy_database(migration_engine, monkeypatch):
+    from app.auth import bootstrap
+    from app.main import app
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
+
+    legacy_schema(migration_engine)
+    monkeypatch.setattr(user_auth, 'engine', migration_engine)
+    monkeypatch.setattr(ctf_core, 'engine', migration_engine)
+    monkeypatch.setattr(bootstrap, 'SessionLocal', sessionmaker(migration_engine))
+    monkeypatch.setenv('ADMIN_USERNAME', 'lifespan_admin')
+    monkeypatch.setenv('ADMIN_PASSWORD', 'IsolatedLifespanPass2026')
+    for _ in range(2):
+        with TestClient(app) as client:
+            assert client.get('/api/health').status_code == 200
+    with Session(migration_engine) as db:
+        assert db.get(User, 1).password_hash == 'keep-hash'
+        assert len(db.scalars(select(Solve)).all()) == 1
+        assert db.scalar(select(User).where(User.username == 'lifespan_admin')).must_change_password

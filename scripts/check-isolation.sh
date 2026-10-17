@@ -20,6 +20,18 @@ else
   ok "нет доступа к бэкенду"
 fi
 
+if lab python -c "import urllib.request; urllib.request.urlopen('http://nginx/api/health', timeout=3)"; then
+  fail "лаборатория достигает приложения через внешний nginx"
+else
+  ok "нет обхода через внешний nginx"
+fi
+
+if lab python -c "import urllib.request; r=urllib.request.urlopen('http://lab-gateway:8000/api/health', timeout=3); assert r.status == 200"; then
+  fail "lab-gateway проксирует API приложения"
+else
+  ok "lab-gateway обслуживает только лабораторию"
+fi
+
 if lab python -c "import socket; socket.create_connection(('1.1.1.1', 443), timeout=3)"; then
   fail "у лаборатории есть интернет"
 else

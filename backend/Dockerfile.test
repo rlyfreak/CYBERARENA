@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+WORKDIR /code
+COPY backend/requirements.txt backend/requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY backend/app ./backend/app
+COPY backend/tests ./backend/tests
+COPY frontend ./frontend
+RUN find backend -type f -name '*.py' -exec chmod 0644 {} +
+ENV PYTHONPATH=/code/backend \
+    PYTHONDONTWRITEBYTECODE=1
+CMD ["python", "-m", "pytest", "backend/tests", "-q"]

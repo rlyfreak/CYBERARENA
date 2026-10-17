@@ -1,0 +1,12 @@
+**
+!backend/
+!backend/requirements.txt
+!backend/requirements-dev.txt
+!backend/app/
+!backend/app/**
+!backend/tests/
+!backend/tests/**
+!frontend/
+!frontend/**
+**/__pycache__
+**/*.pyc

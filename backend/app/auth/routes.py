@@ -384,5 +384,3 @@ def change_password(
         )
 
     return RedirectResponse("/profile", status_code=303)
-
-
