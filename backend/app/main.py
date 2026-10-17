@@ -9,11 +9,13 @@ from . import models  # noqa: F401
 from .auth.bootstrap import bootstrap_admin
 from .auth.routes import router as auth_router
 from .database import Base, engine
+from .migrations.user_auth import migrate as migrate_user_auth
 from .templates import templates
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    migrate_user_auth()
     Base.metadata.create_all(bind=engine)
     bootstrap_admin()
     yield

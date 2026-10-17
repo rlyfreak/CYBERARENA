@@ -1,4 +1,4 @@
-from app.database import engine
+from ..database import engine
 
 COLUMNS = {
     "is_admin": "BOOLEAN NOT NULL DEFAULT 0",
@@ -13,7 +13,7 @@ def migrate():
         ).scalar()
 
         if not table_exists:
-            raise RuntimeError("Table 'users' does not exist")
+            return
 
         result = connection.exec_driver_sql("PRAGMA table_info(users)")
 

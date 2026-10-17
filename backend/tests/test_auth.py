@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from app.auth import login_throttle
+from app.migrations import user_auth
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
@@ -593,3 +594,59 @@ def test_password_change_revokes_old_sessions(sandbox):
         assert second_client.get("/admin").status_code == 401
     finally:
         second_client.close()
+
+
+@pytest.mark.parametrize("legacy_database", [False, True])
+def test_database_migration(
+    tmp_path,
+    monkeypatch,
+    legacy_database,
+):
+    db_path = tmp_path / "migration_test.db"
+    test_engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}")
+
+    try:
+        if legacy_database:
+            with test_engine.begin() as connection:
+                connection.exec_driver_sql("""
+                    CREATE TABLE users (
+                        id INTEGER PRIMARY KEY,
+                        username VARCHAR(50) NOT NULL UNIQUE,
+                        password_hash VARCHAR(255) NOT NULL,
+                        created_at DATETIME NOT NULL
+                            DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                connection.exec_driver_sql(
+                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                    ("legacy", "existing-hash"),
+                )
+
+        monkeypatch.setattr(
+            user_auth,
+            "engine",
+            test_engine,
+        )
+
+        # Два запуска не должны повреждать базу.
+        user_auth.migrate()
+        user_auth.migrate()
+
+        Base.metadata.create_all(bind=test_engine)
+
+        TestingSession = sessionmaker(bind=test_engine)
+
+        with TestingSession() as db:
+            if legacy_database:
+                user = db.scalar(select(User).where(User.username == "legacy"))
+
+                assert user is not None
+                assert user.password_hash == "existing-hash"
+                assert user.is_admin is False
+                assert user.must_change_password is False
+            else:
+                assert db.scalar(select(User.id)) is None
+
+    finally:
+        test_engine.dispose()
