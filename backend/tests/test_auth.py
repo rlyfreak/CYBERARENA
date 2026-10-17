@@ -1,5 +1,6 @@
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from app.auth import login_throttle
@@ -15,7 +16,7 @@ from app.auth import bootstrap, dependencies, routes
 from app.auth.security import verify_password
 from app.database import Base
 from app.main import app
-from app.models import User
+from app.models import LoginAttempt, User
 
 USER_PASSWORD = "TestPlayerPass123!"
 ADMIN_PASSWORD = "TestAdminPass123!"
@@ -441,3 +442,81 @@ def test_successful_login_resets_failures(sandbox):
         assert login(client, "testplayer", "WrongPassword123!").status_code == 401
 
     assert login(client, "testplayer", "WrongPassword123!").status_code == 429
+
+
+def test_concurrent_login_failures_are_atomic(
+    tmp_path,
+    monkeypatch,
+):
+    """
+    Восемь потоков одновременно обновляют
+    счётчик неправильных попыток входа.
+
+    Ни одно обновление не должно потеряться.
+    """
+
+    db_file = tmp_path / "concurrent_auth.db"
+
+    test_engine = create_engine(
+        f"sqlite+pysqlite:///{db_file.as_posix()}",
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 20,
+        },
+    )
+
+    TestingSession = sessionmaker(
+        bind=test_engine,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+
+    Base.metadata.create_all(test_engine)
+
+    monkeypatch.setattr(
+        login_throttle,
+        "SessionLocal",
+        TestingSession,
+    )
+
+    monkeypatch.setattr(
+        login_throttle,
+        "_now",
+        lambda: 1_800_000_000,
+    )
+
+    monkeypatch.setenv(
+        "SESSION_SECRET",
+        "cyberarena-isolated-concurrency-test-secret",
+    )
+
+    try:
+        # Одновременно выполняем 8 операций.
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(
+                executor.map(
+                    login_throttle.record_failure,
+                    ["testplayer"] * 8,
+                )
+            )
+
+        with TestingSession() as db:
+            key = login_throttle._key("testplayer")
+            attempt = db.get(LoginAttempt, key)
+
+            assert attempt is not None
+
+            # Главное: все 8 попыток учтены.
+            assert attempt.failures == 8
+
+            # Блокировка установлена.
+            assert attempt.blocked_until == 1_800_000_900
+
+        # Вход запрещён на следующие 15 минут.
+        assert login_throttle.blocked_for("testplayer") == 900
+
+        # Хотя бы одна операция обнаружила блокировку.
+        assert 900 in results
+
+    finally:
+        test_engine.dispose()
