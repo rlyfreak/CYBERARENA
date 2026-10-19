@@ -2,7 +2,7 @@
 {% block title %}Задания | CYBERARENA{% endblock %}
 {% block content %}<h1>CTF-задания</h1>
 <form method="get"><label>Категория <input name="category" maxlength="50" value="{{ category }}" placeholder="Например, WEB"></label><button>Показать</button></form>
-{% for task in tasks %}<article><span class="tag">{{ task.category }} · {{ task.points }} баллов</span>
+{% for task in tasks %}<article><span class="tag">{{ task.category }} · {{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }} · {{ task.points }} баллов</span>
 <h2><a href="/challenges/{{ task.id }}">{{ task.code or '' }} — {{ task.title }}</a></h2>
 <p>{% if task.solved %}✓ Решено{% else %}Не решено{% endif %}</p></article>
 {% else %}<p>Опубликованных заданий в этой категории пока нет.</p>{% endfor %}

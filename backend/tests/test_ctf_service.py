@@ -4,6 +4,9 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 import pytest
+from sqlalchemy import create_engine, event, func, select
+from sqlalchemy.orm import sessionmaker
+
 from app.ctf import security, service
 from app.database import Base
 from app.models import (
@@ -15,8 +18,6 @@ from app.models import (
     Submission,
     User,
 )
-from sqlalchemy import create_engine, event, func, select
-from sqlalchemy.orm import sessionmaker
 
 FLAG = "CTF{isolated_test_flag}"
 
@@ -43,7 +44,8 @@ def ctf_db(tmp_path, monkeypatch):
             User(id=3, username="admin", password_hash="unused", is_admin=True),
             CtfState(id=1, generation=0),
             Challenge(id=1, code="WEB-01", title="WEB-01", description="Task", category="WEB",
-                      points=100, flag_hash=security.hash_flag(FLAG), is_published=True),
+                      points=100, flag_hash=security.hash_flag(FLAG), is_published=True,
+                      resource_url="/lab/"),
         ])
     monkeypatch.setattr(service, "SessionLocal", factory)
     yield factory, path
@@ -126,7 +128,8 @@ def test_rate_limit_before_hash_and_window_reset(ctf_db, monkeypatch):
     monkeypatch.setattr(security, "verify_flag", lambda *_: pytest.fail("Hash must not run"))
     with pytest.raises(service.CtfError) as error:
         service.submit_flag(1, 1, FLAG)
-    assert error.value.status == 429 and error.value.retry_after > 0
+    assert error.value.status == 429
+    assert error.value.retry_after is not None and error.value.retry_after > 0
     with factory.begin() as db:
         db.get(CtfRateLimit, 1).window_started -= 61
     assert service.submit_flag(1, 1, "bad").result == "invalid_format"

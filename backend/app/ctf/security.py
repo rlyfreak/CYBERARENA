@@ -1,12 +1,14 @@
 """Flags use a fixed, bounded Argon2id policy; no plaintext is persisted."""
 
+from typing import TypeGuard
+
 from argon2 import PasswordHasher, Type, extract_parameters
 from argon2.exceptions import InvalidHashError, VerificationError
 
 hasher = PasswordHasher(time_cost=3, memory_cost=32768, parallelism=1)
 
 
-def valid_flag(flag: object) -> bool:
+def valid_flag(flag: object) -> TypeGuard[str]:
     return (
         isinstance(flag, str)
         and 6 <= len(flag) <= 256

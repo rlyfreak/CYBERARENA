@@ -3,12 +3,13 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from app.auth import login_throttle
-from app.migrations import user_auth
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from app.auth import login_throttle
+from app.migrations import user_auth
 
 # Используется только внутри процесса pytest.
 os.environ["SESSION_SECRET"] = "cyberarena-isolated-test-secret-2026"
@@ -91,9 +92,10 @@ def test_malformed_csrf_rejected_without_mutation(sandbox, token, path):
 
 @pytest.mark.parametrize("stored", [None, 123, [], "тест", "x" * 129])
 def test_invalid_stored_csrf_is_rejected_and_replaced(stored):
-    from app.auth.csrf import get_csrf_token, validate_csrf
     from fastapi import HTTPException
     from starlette.requests import Request
+
+    from app.auth.csrf import get_csrf_token, validate_csrf
 
     request = Request({"type": "http", "session": {"csrf_token": stored}})
     with pytest.raises(HTTPException) as error:
@@ -479,10 +481,9 @@ def test_rate_limit_shared_between_browsers(sandbox, monkeypatch):
         lambda: 1_800_000_000,
     )
 
-    for _ in range(5):
+    for attempt in range(5):
         response = login(client, "testplayer", "WrongPassword123!")
-
-    assert response.status_code == 429
+        assert response.status_code == (429 if attempt == 4 else 401)
 
     # Новый браузер — без cookies предыдущего пользователя.
     second_client = TestClient(app, follow_redirects=False)

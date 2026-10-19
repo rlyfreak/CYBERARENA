@@ -52,6 +52,10 @@ class Challenge(Base):
             "points > 0",
             name="ck_challenges_points_positive",
         ),
+        CheckConstraint(
+            "difficulty IN ('easy', 'medium', 'hard')",
+            name="ck_challenges_difficulty",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -62,7 +66,13 @@ class Challenge(Base):
     revision: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=text("1")
     )
-
+    difficulty: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="easy",
+        server_default=text("'easy'"),
+    )
+    resource_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str] = mapped_column(
         String(150),
         nullable=False,

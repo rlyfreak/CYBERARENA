@@ -1,12 +1,15 @@
 import secrets
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TypeVar
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from ..database import SessionLocal
 from ..models import (
@@ -25,6 +28,7 @@ WINDOW_SECONDS = 60
 MAX_VERIFICATIONS = 2
 LEASE_SECONDS = 60
 CASE_POINTS = {"WEB-01": 100, "WEB-02": 150, "CRYPTO-01": 150}
+T = TypeVar("T")
 
 
 class CtfError(Exception):
@@ -46,9 +50,10 @@ def utcnow():
     return datetime.now(UTC).replace(tzinfo=None)
 
 
-def write(operation):
+def write(operation: Callable[[Session], T]) -> T:
     """Retry an entire short transaction, never a partially committed operation."""
-    for retry in range(3):
+    retry = 0
+    while True:
         try:
             with SessionLocal() as db:
                 db.execute(text("BEGIN IMMEDIATE"))
@@ -61,14 +66,22 @@ def write(operation):
                 raise
             if retry == 2:
                 raise CtfError(503, "Database busy; retry later", 1) from exc
-            time.sleep(0.02 * (retry + 1))
+            retry += 1
+            time.sleep(0.02 * retry)
 
 
-def published(db, challenge_id):
+def published(db: Session, challenge_id: int) -> Challenge:
     challenge = db.get(Challenge, challenge_id)
     if challenge is None or not challenge.is_published:
         raise CtfError(404, "Challenge not found")
     return challenge
+
+
+def _state(db: Session) -> CtfState:
+    state = db.get(CtfState, 1)
+    if state is None:
+        raise CtfError(503, "CTF state is not initialized; restart the application")
+    return state
 
 
 def _solved(db, user_id, challenge_id):
@@ -100,10 +113,10 @@ def _rate_limit(db, user_id):
         rate.attempts += 1
 
 
-def _lease(db, token):
+def _lease(db: Session, token: str) -> None:
     now = int(time.time())
     db.execute(delete(CtfVerificationLease).where(CtfVerificationLease.expires_at <= now))
-    if db.scalar(select(func.count()).select_from(CtfVerificationLease)) >= MAX_VERIFICATIONS:
+    if db.execute(select(func.count()).select_from(CtfVerificationLease)).scalar_one() >= MAX_VERIFICATIONS:
         raise CtfError(503, "Flag verification busy; retry later", 1)
     db.add(CtfVerificationLease(token=token, expires_at=now + LEASE_SECONDS))
 
@@ -127,7 +140,7 @@ def managed_hash(user_id, flag):
 def submit_flag(user_id: int, challenge_id: int, flag: object) -> SubmissionResult:
     token = secrets.token_hex(16)
 
-    def reserve(db):
+    def reserve(db: Session) -> SubmissionResult | tuple[str, str, int, int]:
         user = db.get(User, user_id)
         if user is None or user.must_change_password:
             raise CtfError(403, "Participant access required")
@@ -142,19 +155,19 @@ def submit_flag(user_id: int, challenge_id: int, flag: object) -> SubmissionResu
         if not security.supported_hash(challenge.flag_hash):
             raise CtfError(503, "Challenge flag is not configured")
         _lease(db, token)
-        return challenge.flag_hash, challenge.revision, db.get(CtfState, 1).generation
+        return flag, challenge.flag_hash, challenge.revision, _state(db).generation
 
     reserved = write(reserve)
     if isinstance(reserved, SubmissionResult):
         return reserved
-    encoded, revision, generation = reserved
+    verified_flag, encoded, revision, generation = reserved
     released = False
     try:
-        correct = security.verify_flag(flag, encoded)
+        correct = security.verify_flag(verified_flag, encoded)
 
-        def finish(db):
+        def finish(db: Session) -> SubmissionResult:
             # Reset or challenge edits during verification must not resurrect old results.
-            if db.get(CtfState, 1).generation != generation:
+            if _state(db).generation != generation:
                 raise CtfError(409, "Results reset during submission; retry")
             challenge = published(db, challenge_id)
             if challenge.revision != revision or challenge.flag_hash != encoded:
@@ -165,12 +178,13 @@ def submit_flag(user_id: int, challenge_id: int, flag: object) -> SubmissionResu
             now = utcnow()
             if _solved(db, user_id, challenge_id):
                 attempt = _record(db, user_id, challenge_id, "already_solved", now)
+                db.execute(delete(CtfVerificationLease).where(CtfVerificationLease.token == token))
                 return SubmissionResult("already_solved", attempt.id)
             attempt = _record(db, user_id, challenge_id, "incorrect", now)
             points = 0
             result = "incorrect"
             if correct:
-                inserted = db.execute(insert(Solve).values(
+                inserted = db.connection().execute(insert(Solve).values(
                     user_id=user_id, challenge_id=challenge_id, submission_id=attempt.id,
                     points_awarded=challenge.points, solved_at=now,
                 ).on_conflict_do_nothing(index_elements=[Solve.user_id, Solve.challenge_id]))
@@ -213,7 +227,7 @@ def leaderboard(offset=0, limit=50):
 
 def challenge_data(challenge, solved=False):
     return {name: getattr(challenge, name) for name in (
-        "id", "code", "title", "description", "category", "points", "is_published", "revision",
+        "id", "code", "title", "description", "category", "difficulty", "resource_url", "points", "is_published", "revision",
     )} | {"solved": solved}
 
 
@@ -271,10 +285,10 @@ def save_challenge(admin_id, values, challenge_id=None):
         if secret is None:
             raise CtfError(422, "Flag cannot be null")
         encoded = managed_hash(admin_id, secret.get_secret_value())
-    if any(value is None for value in values.values()):
+    if any(value is None for name, value in values.items() if name != "resource_url"):
         raise CtfError(422, "Fields cannot be null")
 
-    def save(db):
+    def save(db: Session):
         if challenge_id is None:
             if db.scalar(select(Challenge.id).where(Challenge.code == values['code'])) is not None:
                 raise CtfError(409, "Challenge code already exists")
@@ -295,7 +309,8 @@ def save_challenge(admin_id, values, challenge_id=None):
             _validate_challenge(fields)
             for name, value in changes.items():
                 setattr(challenge, name, value)
-            challenge.flag_hash = fields['flag_hash']
+            if encoded is not None:
+                challenge.flag_hash = encoded
             challenge.revision += 1
         db.flush()
         return challenge_data(challenge)
@@ -304,16 +319,16 @@ def save_challenge(admin_id, values, challenge_id=None):
 
 def results_state():
     with SessionLocal() as db:
-        return {"generation": db.get(CtfState, 1).generation}
+        return {"generation": _state(db).generation}
 
 
 def reset_results(expected_generation):
-    def reset(db):
-        state = db.get(CtfState, 1)
+    def reset(db: Session):
+        state = _state(db)
         if state.generation != expected_generation:
             raise CtfError(409, "Results changed; refresh before resetting")
-        solves = db.execute(delete(Solve)).rowcount
-        attempts = db.execute(delete(Submission)).rowcount
+        solves = db.connection().execute(delete(Solve)).rowcount
+        attempts = db.connection().execute(delete(Submission)).rowcount
         db.execute(delete(CtfRateLimit))
         state.generation += 1
         return {"solves_deleted": solves, "attempts_deleted": attempts, "generation": state.generation}
@@ -330,5 +345,6 @@ def seed_case():
                     code=code, title=code, category=code.split('-')[0], points=points,
                     description='Черновик кейса. Добавьте условие, материалы и флаг перед публикацией.',
                     flag_hash='', is_published=False,
+                    resource_url='/lab/' if code == 'WEB-01' else None,
                 ))
     write(seed)

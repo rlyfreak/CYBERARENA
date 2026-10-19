@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('ctf_smoke', ROOT / 'scripts' / 'ctf_smoke.py')
+assert spec is not None and spec.loader is not None
 smoke = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(smoke)
 
@@ -44,6 +45,7 @@ class Browser:
             self.last = next(self.lab, self.last)
             if isinstance(self.last, Exception):
                 raise self.last
+            assert self.last is not None
             result = self.last
         return *result, {'Content-Type': 'text/html'}
 

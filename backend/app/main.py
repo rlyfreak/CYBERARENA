@@ -14,6 +14,8 @@ from .ctf.body_limit import CtfBodyLimit
 from .ctf.pages import router as ctf_pages
 from .ctf.routes import router as ctf_router
 from .ctf.service import CtfError
+from .migrations.challenge_difficulty import migrate as migrate_challenge_difficulty
+from .migrations.challenge_resources import migrate as migrate_challenge_resources
 from .migrations.ctf_core import migrate as migrate_ctf_core
 from .migrations.user_auth import migrate as migrate_user_auth
 from .templates import templates
@@ -23,6 +25,8 @@ from .templates import templates
 async def lifespan(app: FastAPI):
     migrate_user_auth()
     migrate_ctf_core()
+    migrate_challenge_resources()
+    migrate_challenge_difficulty()
     bootstrap_admin()
     yield
 
