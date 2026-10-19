@@ -8,6 +8,7 @@ COPY labs/web-01/server.py ./labs/web-01/server.py
 COPY frontend ./frontend
 COPY scripts/ctf_smoke.py ./scripts/ctf_smoke.py
 COPY .github/workflows/ci.yml ./.github/workflows/ci.yml
+COPY ruff.toml ./ruff.toml
 RUN find backend scripts labs -type f -name '*.py' -exec chmod 0644 {} +
 ENV PYTHONPATH=/code/backend \
     PYTHONDONTWRITEBYTECODE=1

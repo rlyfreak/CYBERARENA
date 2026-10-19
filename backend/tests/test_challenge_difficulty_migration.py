@@ -5,8 +5,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
-from test_ctf_api import authenticate
-from test_ctf_service import factory_for
 
 from app.auth import bootstrap, dependencies
 from app.ctf import service
@@ -19,6 +17,8 @@ from app.migrations import (
     user_auth,
 )
 from app.models import SchemaMigration
+from test_ctf_api import authenticate
+from test_ctf_service import factory_for
 
 
 @pytest.fixture

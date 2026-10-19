@@ -18,3 +18,4 @@
 !labs/
 !labs/web-01/
 !labs/web-01/server.py
+!ruff.toml

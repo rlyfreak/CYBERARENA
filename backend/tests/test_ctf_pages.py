@@ -1,10 +1,10 @@
 import re
 
 import pytest
-from test_ctf_api import FLAG, admin_login
 
 from app.ctf import cli
 from app.models import Challenge
+from test_ctf_api import FLAG, admin_login
 
 
 def token(response):

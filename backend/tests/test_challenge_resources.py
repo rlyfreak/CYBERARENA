@@ -4,11 +4,11 @@ from html.parser import HTMLParser
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import delete, func, select
-from test_ctf_api import FLAG, admin_login, authenticate, payload
-from test_ctf_pages import token
 
 from app.ctf import schemas, security, service
 from app.models import Challenge, CtfState, CtfVerificationLease, Solve
+from test_ctf_api import FLAG, admin_login, authenticate, payload
+from test_ctf_pages import token
 
 
 class FormFields(HTMLParser):

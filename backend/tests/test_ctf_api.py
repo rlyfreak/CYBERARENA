@@ -10,11 +10,11 @@ os.environ.setdefault("SESSION_SECRET", "cyberarena-isolated-test-secret-2026")
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
-from test_ctf_service import FLAG
 
 from app.auth import dependencies
 from app.main import SESSION_SECRET, app
 from app.models import AuthSession, Challenge, User
+from test_ctf_service import FLAG
 
 
 def authenticate(client, factory, user_id):
