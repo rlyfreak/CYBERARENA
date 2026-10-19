@@ -12,12 +12,13 @@ from pathlib import Path
 
 os.environ.setdefault('SESSION_SECRET', 'cyberarena-isolated-test-secret-2026')
 
+from fastapi.testclient import TestClient
+
 from app.auth import dependencies
 from app.ctf import security, service
 from app.main import app
 from app.migrations.ctf_core import migrate
 from app.models import Challenge, User
-from fastapi.testclient import TestClient
 from test_ctf_api import authenticate
 from test_ctf_service import factory_for
 

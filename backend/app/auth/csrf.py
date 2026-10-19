@@ -1,11 +1,12 @@
 """CSRF helpers shared by HTML forms and cookie-authenticated JSON APIs."""
 
 import secrets
+from typing import TypeGuard
 
 from fastapi import HTTPException, Request
 
 
-def _valid_token(value: object) -> bool:
+def _valid_token(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and 0 < len(value) <= 128 and value.isascii()
 
 

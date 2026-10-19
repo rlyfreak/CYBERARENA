@@ -1,0 +1,8 @@
+
+[lint.isort]
+known-first-party = [
+    "app",
+    "test_ctf_api",
+    "test_ctf_pages",
+    "test_ctf_service",
+]

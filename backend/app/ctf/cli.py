@@ -20,12 +20,16 @@ def main(argv=None):
     for name in ['code', 'title', 'description', 'category']:
         create.add_argument('--' + name, required=True)
     create.add_argument('--points', type=int, required=True)
+    create.add_argument('--difficulty', choices=['easy', 'medium', 'hard'], default='easy')
+    create.add_argument('--resource-url')
     create.add_argument('--publish', action='store_true')
     edit = commands.add_parser('edit')
     edit.add_argument('id', type=int)
     for name in ['title', 'description', 'category']:
         edit.add_argument('--' + name)
     edit.add_argument('--points', type=int)
+    edit.add_argument('--difficulty', choices=['easy', 'medium', 'hard'])
+    edit.add_argument('--resource-url', help='Local resource path; empty string clears it')
     edit.add_argument('--set-flag', action='store_true')
     visibility = edit.add_mutually_exclusive_group()
     visibility.add_argument('--publish', action='store_true')
@@ -43,12 +47,14 @@ def main(argv=None):
             return
         if args.command == 'create':
             values = {name: getattr(args, name) for name in ['code', 'title', 'description', 'category', 'points']}
+            values.update(difficulty=args.difficulty, resource_url=args.resource_url)
             values.update(flag=getpass.getpass('Flag (CTF{...}): '), is_published=args.publish)
             payload = schemas.ChallengeCreate.model_validate(values)
             result = service.save_challenge(admin_id, payload.model_dump())
         else:
             task = service.challenge_detail(admin_id, args.id, include_hidden=True)
-            values = {name: getattr(args, name) for name in ['title', 'description', 'category', 'points']
+            values = {name: getattr(args, name) for name in ['title', 'description', 'category', 'points',
+                                                          'difficulty', 'resource_url']
                       if getattr(args, name) is not None}
             values['expected_revision'] = task['revision']
             if args.publish or args.hide:

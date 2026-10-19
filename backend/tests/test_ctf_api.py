@@ -8,11 +8,12 @@ import time
 os.environ.setdefault("SESSION_SECRET", "cyberarena-isolated-test-secret-2026")
 
 import pytest
+from fastapi.testclient import TestClient
+from itsdangerous import TimestampSigner
+
 from app.auth import dependencies
 from app.main import SESSION_SECRET, app
 from app.models import AuthSession, Challenge, User
-from fastapi.testclient import TestClient
-from itsdangerous import TimestampSigner
 from test_ctf_service import FLAG
 
 
@@ -23,6 +24,7 @@ def authenticate(client, factory, user_id):
         db.add(AuthSession(token_hash=hashlib.sha256(sid.encode()).hexdigest(),
                            user_id=user_id, expires_at=int(time.time()) + 3600))
     data = base64.b64encode(json.dumps({"user_id": user_id, "sid": sid}).encode())
+    assert SESSION_SECRET is not None
     client.cookies.set("cyberarena_session", TimestampSigner(SESSION_SECRET).sign(data).decode())
 
 

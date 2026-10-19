@@ -3,7 +3,9 @@
 import json
 import subprocess
 
-PREFIX = 'cyberarena-ctf-check'
+from ctf_smoke import PROJECT
+
+PREFIX = PROJECT
 
 
 def main():

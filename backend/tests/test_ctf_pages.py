@@ -1,13 +1,16 @@
 import re
 
 import pytest
+
 from app.ctf import cli
 from app.models import Challenge
 from test_ctf_api import FLAG, admin_login
 
 
 def token(response):
-    return re.search(r'name="csrf_token" value="([^"]+)"', response.text).group(1)
+    match = re.search(r'name="csrf_token" value="([^"]+)"', response.text)
+    assert match is not None
+    return match.group(1)
 
 
 def test_participant_pages_and_form_flow(api):
@@ -79,8 +82,17 @@ def test_cli_uses_hidden_flag_input_and_admin_role(api, monkeypatch, capsys):
     with pytest.raises(SystemExit):
         cli.main(['--admin', 'player', 'seed-case'])
     cli.main(['--admin', 'admin', 'create', '--code', 'WEB-02', '--title', 'Task',
-              '--description', 'Text', '--category', 'WEB', '--points', '150', '--publish'])
+              '--description', 'Text', '--category', 'WEB', '--points', '150', '--publish',
+              '--difficulty', 'hard', '--resource-url', '/lab/status'])
     with factory() as db:
         task = db.query(Challenge).filter_by(code='WEB-02').one()
         assert task.is_published and FLAG not in task.flag_hash
+        assert task.difficulty == 'hard' and task.resource_url == '/lab/status'
+        task_id, encoded = task.id, task.flag_hash
+    cli.main(['--admin', 'admin', 'edit', str(task_id), '--difficulty', 'medium', '--resource-url', ''])
+    with factory() as db:
+        task = db.get(Challenge, task_id)
+        assert task is not None
+        assert task.difficulty == 'medium' and task.resource_url is None
+        assert task.flag_hash == encoded and task.is_published
     assert FLAG not in capsys.readouterr().out

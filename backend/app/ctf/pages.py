@@ -1,8 +1,8 @@
-from typing import Annotated
+from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from ..auth.csrf import get_csrf_token, validate_csrf
@@ -14,6 +14,7 @@ from .routes import Limit, Offset
 
 router = APIRouter(include_in_schema=False)
 Admin = Annotated[User, Depends(require_admin)]
+Model = TypeVar("Model", bound=BaseModel)
 
 
 def page_user(request: Request):
@@ -35,11 +36,20 @@ def render(request, name, user=None, status_code=200, **context):
     }, status_code=status_code, headers={'Cache-Control': 'no-store'})
 
 
-def validated(model, data):
+def validated(model: type[Model], data: object) -> Model:
     try:
         return model.model_validate(data)
     except ValidationError as exc:
         raise service.CtfError(422, 'Проверьте заполнение полей. Флаг: CTF{...}, до 256 символов.') from exc
+
+
+async def challenge_form_data(request: Request) -> dict[str, str | int | bool]:
+    data: dict[str, str | int | bool] = {}
+    for name, value in (await request.form()).items():
+        if not isinstance(value, str):
+            raise service.CtfError(422, 'Поля задания должны содержать текст, а не файлы')
+        data[name] = value
+    return data
 
 
 @router.get('/challenges')
@@ -98,7 +108,7 @@ def admin_edit(challenge_id: int, request: Request, user: Admin):
 
 @router.post('/admin/challenges/new')
 async def admin_create_form(request: Request, user: Admin):
-    data = dict(await request.form())
+    data = await challenge_form_data(request)
     validate_csrf(request, data.pop('csrf_token', None))
     try:
         data['points'] = int(data.get('points', ''))
@@ -112,7 +122,7 @@ async def admin_create_form(request: Request, user: Admin):
 
 @router.post('/admin/challenges/{challenge_id}')
 async def admin_edit_form(challenge_id: int, request: Request, user: Admin):
-    data = dict(await request.form())
+    data = await challenge_form_data(request)
     validate_csrf(request, data.pop('csrf_token', None))
     try:
         data['points'] = int(data.get('points', ''))

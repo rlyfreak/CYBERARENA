@@ -15,6 +15,9 @@ from concurrent.futures import ThreadPoolExecutor
 from time import monotonic, sleep
 
 BASE = 'http://127.0.0.1:18080'
+PROJECT = os.environ.get('CTF_CHECK_PROJECT', 'cyberarena-ctf-check')
+if not re.fullmatch(r'cyberarena-ctf-check(?:-[a-z0-9-]+)?', PROJECT):
+    raise ValueError('CTF_CHECK_PROJECT must name an isolated cyberarena-ctf-check project')
 FALLBACK_MESSAGE = 'Учебная лаборатория сейчас недоступна'
 UPSTREAM_ERRORS = (502, 503, 504)
 OUTAGE_WAIT_SECONDS = 20
@@ -57,7 +60,10 @@ class Browser:
         assert status == 200
         if isinstance(data, dict):
             return data['csrf_token']
-        return re.search(r'name="csrf_token"\s+value="([^"]+)"', data).group(1)
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', data)
+        if match is None:
+            raise AssertionError('CSRF input is missing from the response')
+        return match.group(1)
 
     def login(self, username, password):
         return self.request('/login', 'POST', form={
@@ -71,9 +77,9 @@ def outage_diagnostics(observations):
     print(json.dumps(observations, ensure_ascii=False, indent=2), file=sys.stderr, flush=True)
     # Direct logs do not require Compose interpolation or any test secrets.
     commands = [['docker', 'ps', '--all', '--filter',
-                 'label=com.docker.compose.project=cyberarena-ctf-check']]
+                 f'label=com.docker.compose.project={PROJECT}']]
     commands += [['docker', 'logs', '--timestamps', '--tail', '100',
-                  f'cyberarena-ctf-check-{service}-1'] for service in ['nginx', 'lab-gateway']]
+                  f'{PROJECT}-{service}-1'] for service in ['nginx', 'lab-gateway']]
     for command in commands:
         print('Diagnostic: ' + ' '.join(command), file=sys.stderr, flush=True)
         try:
@@ -168,10 +174,13 @@ def main():
             })
             assert status == 303
         token = admin.csrf()
-        existing = {task['code']: task for task in admin.request('/api/admin/challenges')[1]}
+        listed = admin.request('/api/admin/challenges')[1]
+        assert isinstance(listed, list)
+        existing = {task['code']: task for task in listed}
         for code, points in [('WEB-01', 100), ('WEB-02', 150), ('CRYPTO-01', 150)]:
             fields = {'title': code, 'description': 'Isolated smoke task', 'category': code.split('-')[0],
-                      'points': points, 'flag': flag, 'is_published': True}
+                      'points': points, 'flag': flag, 'is_published': True,
+                      'difficulty': 'medium', 'resource_url': '/lab/' if code == 'WEB-01' else None}
             if code in existing:
                 fields['expected_revision'] = existing[code]['revision']
                 status = admin.request(f"/api/admin/challenges/{existing[code]['id']}", 'PATCH',
@@ -180,7 +189,9 @@ def main():
             else:
                 fields['code'] = code
                 assert admin.request('/api/admin/challenges', 'POST', data=fields, csrf=token)[0] == 201
-        generation = admin.request('/api/admin/results')[1]['generation']
+        state = admin.request('/api/admin/results')[1]
+        assert isinstance(state, dict)
+        generation = state['generation']
         assert admin.request('/api/admin/results/reset', 'POST', csrf=token, data={
             'confirmation': 'RESET DEMO RESULTS', 'expected_generation': generation,
         })[0] == 200
@@ -195,12 +206,16 @@ def main():
     assert player.login('ctfcheckplayer', password)[0] == 303
     csrf = player.csrf()
     tasks = player.request('/api/challenges')[1]
+    assert isinstance(tasks, list)
     assert {task['code']: task['points'] for task in tasks} == {'WEB-01': 100, 'WEB-02': 150, 'CRYPTO-01': 150}
+    assert all(task['difficulty'] == 'medium' for task in tasks)
+    assert next(task['resource_url'] for task in tasks if task['code'] == 'WEB-01') == '/lab/'
     task_id = next(task['id'] for task in tasks if task['code'] == 'WEB-01')
     path = f'/api/challenges/{task_id}/submissions'
     if args.phase == 'prepare':
         assert player.request(path, 'POST', data={'flag': 'wrong'}, csrf=csrf)[0] == 422
-        assert player.request(path, 'POST', data={'flag': 'CTF{wrong}'}, csrf=csrf)[1]['result'] == 'incorrect'
+        _, wrong, _ = player.request(path, 'POST', data={'flag': 'CTF{wrong}'}, csrf=csrf)
+        assert isinstance(wrong, dict) and wrong['result'] == 'incorrect'
 
         def send(_):
             # Each thread owns its cookie jar; reuse only this test participant's cookies.
@@ -213,6 +228,7 @@ def main():
                     sleep(1)
                     continue
                 assert status in (200, 409)
+                assert isinstance(data, dict)
                 return data['result']
             raise AssertionError('Concurrent retry budget exhausted')
 
@@ -222,6 +238,7 @@ def main():
     else:
         assert player.request(path, 'POST', data={'flag': flag}, csrf=csrf)[0] == 409
     leaderboard = player.request('/api/leaderboard')[1]
+    assert isinstance(leaderboard, list)
     assert next(row for row in leaderboard if row['username'] == 'ctfcheckplayer')['points'] == 100
     assert len(player.request('/api/submissions')[1]) >= 10
     for page in ['/', '/challenges', f'/challenges/{task_id}', '/submissions', '/leaderboard', '/lab/', '/lab/status']:
