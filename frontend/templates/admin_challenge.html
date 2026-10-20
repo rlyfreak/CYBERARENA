@@ -8,8 +8,8 @@
 <label>Сложность <select name="difficulty" required>
 {% for value, label in [('easy', 'Лёгкая'), ('medium', 'Средняя'), ('hard', 'Сложная')] %}<option value="{{ value }}" {% if (task.difficulty if task else 'easy') == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
 </select></label>
-<label>Ресурс задания <input name="resource_url" maxlength="2048" value="{{ (task.resource_url or '') if task else '' }}" placeholder="/lab/"></label>
-<p class="muted">Локальный путь, начинающийся с /. Пустое поле уберёт ссылку.</p>
+<label>Ссылка на материалы <input name="resource_url" maxlength="2048" value="{{ (task.resource_url or '') if task else '' }}" placeholder="/files/web-02/ или /files/crypto-01/task.txt"></label>
+<p class="muted">Локальный путь, начинающийся с /. Для WEB-02 укажите страницу или папку, для CRYPTO-01 — путь к файлу. Пустое поле уберёт ссылку.</p>
 <label>Баллы <input type="number" name="points" required min="1" max="10000" value="{{ task.points if task else 100 }}"></label>
 <label>Условие и материалы <textarea name="description" required maxlength="20000">{{ task.description if task else '' }}</textarea></label>
 <label>{{ 'Новый флаг (пустое поле сохранит текущий)' if task else 'Флаг' }} <input type="password" name="flag" {% if not task %}required{% endif %} minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="new-password"></label>

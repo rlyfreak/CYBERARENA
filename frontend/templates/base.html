@@ -2,8 +2,33 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}CYBERARENA{% endblock %}</title>
 <style>
-:root{color-scheme:dark}body{background:#111118;color:#ebedf4;font:16px/1.6 system-ui,sans-serif;max-width:1100px;margin:30px auto;padding:0 20px}a{color:#a2ff85}nav{display:flex;flex-wrap:wrap;gap:20px;padding:16px 0;border-bottom:1px solid #444}h1{line-height:1.25}article,.card{padding:22px;border:1px solid #454554;border-radius:12px;background:#1c1c27;margin:18px 0}input,textarea,select,button{font:inherit;padding:9px;border:1px solid #686879;border-radius:6px;max-width:100%;box-sizing:border-box}input:not([type=checkbox]),textarea{width:100%}textarea{min-height:160px}label{display:block;margin:14px 0}button{background:#a2ff85;color:#111;cursor:pointer}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #454554;padding:12px}small,.muted{color:#b5b5c7}.message{border-left:4px solid #a2ff85;padding:12px}.description{white-space:pre-wrap;overflow-wrap:anywhere}.scroll{overflow:auto}.danger{border-color:#ec9b91}.pagination{display:flex;gap:24px;margin:24px 0}.tag{color:#a2ff85}code{overflow-wrap:anywhere}
+:root{color-scheme:dark}body{background:#111118;color:#ebedf4;font:16px/1.6 system-ui,sans-serif;max-width:1100px;margin:30px auto;padding:0 20px}a{color:#a2ff85}nav{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:16px 0;border-bottom:1px solid #444}.nav-form{display:inline;margin:0}.nav-button{border:0;background:none;color:#a2ff85;padding:0;text-decoration:underline}h1{line-height:1.25}article,.card{padding:22px;border:1px solid #454554;border-radius:12px;background:#1c1c27;margin:18px 0}input,textarea,select,button{font:inherit;padding:9px;border:1px solid #686879;border-radius:6px;max-width:100%;box-sizing:border-box}input:not([type=checkbox]),textarea{width:100%}textarea{min-height:160px}label{display:block;margin:14px 0}button{background:#a2ff85;color:#111;cursor:pointer}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #454554;padding:12px}small,.muted{color:#b5b5c7}.message{border-left:4px solid #a2ff85;padding:12px}.description{white-space:pre-wrap;overflow-wrap:anywhere}.scroll{overflow:auto}.danger{border-color:#ec9b91}.pagination{display:flex;gap:24px;margin:24px 0}.tag{color:#a2ff85}code{overflow-wrap:anywhere}
 </style></head><body>
-<nav aria-label="Навигация"><a href="/">CYBERARENA</a><a href="/challenges">Задания</a><a href="/leaderboard">Рейтинг</a><a href="/submissions">Мои попытки</a><a href="/profile">Профиль</a>{% if user and user.is_admin %}<a href="/admin">Управление</a>{% endif %}<a href="/login">Вход</a><a href="/register">Регистрация</a></nav>
+<nav aria-label="Навигация">
+<a href="/">CYBERARENA</a><a href="/challenges">Задания</a><a href="/leaderboard">Рейтинг</a>
+<span data-auth-navigation {% if not user %}hidden{% endif %}><a href="/submissions">Мои попытки</a></span>
+<span data-auth-navigation {% if not user %}hidden{% endif %}><a href="/profile">Профиль</a></span>
+<span data-admin-navigation {% if not user or not user.is_admin %}hidden{% endif %}><a href="/admin">Управление</a></span>
+<span data-auth-navigation {% if not user %}hidden{% endif %}>
+<form class="nav-form" action="/logout" method="post"><input data-navigation-csrf type="hidden" name="csrf_token" value="{{ csrf_token if user else '' }}"><button class="nav-button" type="submit">Выйти</button></form>
+</span>
+<span data-guest-navigation {% if user %}hidden{% endif %}><a href="/login">Вход</a></span>
+<span data-guest-navigation {% if user %}hidden{% endif %}><a href="/register">Регистрация</a></span>
+</nav>
 <main>{% block content %}{% endblock %}</main>
+{% if not user %}<script>
+fetch('/api/csrf', {headers: {'Accept': 'application/json'}}).then(function (response) {
+    if (!response.ok) return null;
+    return response.json();
+}).then(function (data) {
+    if (!data || !data.csrf_token) return;
+    document.querySelectorAll('[data-guest-navigation]').forEach(function (item) { item.hidden = true; });
+    document.querySelectorAll('[data-auth-navigation]').forEach(function (item) { item.hidden = false; });
+    document.querySelectorAll('[data-navigation-csrf]').forEach(function (input) { input.value = data.csrf_token; });
+    fetch('/api/admin/results', {headers: {'Accept': 'application/json'}}).then(function (response) {
+        if (!response.ok) return;
+        document.querySelectorAll('[data-admin-navigation]').forEach(function (item) { item.hidden = false; });
+    }).catch(function () {});
+}).catch(function () {});
+</script>{% endif %}
 </body></html>

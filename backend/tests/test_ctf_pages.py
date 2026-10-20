@@ -19,6 +19,8 @@ def test_participant_pages_and_form_flow(api):
         response = client.get(path)
         assert response.status_code == 200, response.text
     page = client.get('/challenges/1')
+    assert 'data-guest-navigation hidden' in page.text
+    assert 'action="/logout"' in page.text and '>Выйти<' in page.text
     assert client.post('/challenges/1', data={'flag': FLAG, 'csrf_token': 'тест'}).status_code == 403
     response = client.post('/challenges/1', data={'flag': FLAG, 'csrf_token': token(page)})
     assert response.status_code == 303 and FLAG not in response.headers['location']

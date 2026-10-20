@@ -194,6 +194,7 @@ def test_resource_admin_forms_and_player_rendering(api):
     task_id = int(edit_path.rsplit("/", 1)[1])
     player_page = client.get(f"/challenges/{task_id}")
     assert 'href="/lab/?q=&#34;&lt;&amp;x=1"' in player_page.text
+    assert "Открыть материалы задания" in player_page.text
     assert "Средняя" in player_page.text and "Средняя" in client.get("/challenges").text
     data.pop("code")
     data["flag"] = ""
@@ -229,6 +230,24 @@ def test_web01_resource_is_data_driven(api):
         assert task is not None
         task.resource_url = None
     assert 'target="_blank"' not in client.get("/challenges/1").text
+
+
+def test_challenge_resource_distinguishes_page_and_file(api):
+    client, factory = api
+    with factory.begin() as db:
+        task = db.get(Challenge, 1)
+        assert task is not None
+        task.resource_url = "/files/web-02/index.html"
+    page = client.get("/challenges/1")
+    assert "Открыть материалы задания" in page.text
+    assert " download" not in page.text
+    with factory.begin() as db:
+        task = db.get(Challenge, 1)
+        assert task is not None
+        task.resource_url = "/files/crypto-01/ciphertext.txt"
+    page = client.get("/challenges/1")
+    assert "Скачать файл: ciphertext.txt" in page.text
+    assert " download" in page.text
 
 
 def test_parallel_repeat_releases_verification_capacity(ctf_db, monkeypatch):
