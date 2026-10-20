@@ -11,6 +11,7 @@
 !scripts/
 !scripts/ctf_smoke.py
 !scripts/check_resource_integration.py
+!scripts/check_static_files.py
 !.github/
 !.github/workflows/
 !.github/workflows/ci.yml
