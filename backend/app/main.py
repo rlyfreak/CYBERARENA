@@ -52,12 +52,12 @@ async def ctf_error(request: Request, error: CtfError):
     if error.retry_after is not None:
         headers['Retry-After'] = str(error.retry_after)
     if not request.url.path.startswith('/api/'):
-        user = get_optional_user(request)
+        user = getattr(request.state, 'user', None)
         return templates.TemplateResponse(
             request, 'ctf_error.html', {
                 'message': error.message,
                 'user': user,
-                'csrf_token': get_csrf_token(request),
+                'csrf_token': get_csrf_token(request) if user is not None else None,
             },
             status_code=error.status, headers=headers,
         )
@@ -101,7 +101,7 @@ async def index(
     return templates.TemplateResponse(request, "index.html", {
         "user": user,
         "csrf_token": get_csrf_token(request),
-    })
+    }, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/health", tags=["System"])

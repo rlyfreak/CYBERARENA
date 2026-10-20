@@ -10,7 +10,9 @@ from .session_store import get_session_user
 def get_optional_user(request: Request) -> User | None:
     """Resolve a valid server-side session without requiring authentication."""
     with SessionLocal() as db:
-        return get_session_user(request, db)
+        user = get_session_user(request, db)
+    request.state.user = user
+    return user
 
 
 def get_current_user(request: Request) -> User:

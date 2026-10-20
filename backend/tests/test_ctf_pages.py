@@ -4,8 +4,10 @@ import time
 import pytest
 from sqlalchemy import delete, select
 
+from app.auth import dependencies
 from app.auth import routes as auth_routes
-from app.ctf import cli
+from app.ctf import cli, service
+from app.ctf.service import CtfError
 from app.models import AuthSession, Challenge, User
 from test_ctf_api import FLAG, admin_login
 
@@ -26,6 +28,46 @@ GUEST_NAVIGATION = {'CYBERARENA', 'Рейтинг', 'Задания', 'Вход'
 PLAYER_NAVIGATION = {'CYBERARENA', 'Рейтинг', 'Задания', 'Мои попытки', 'Профиль', 'Выйти'}
 ADMIN_NAVIGATION = PLAYER_NAVIGATION | {'Управление'}
 PASSWORD_CHANGE_NAVIGATION = {'CYBERARENA', 'Рейтинг', 'Сменить пароль', 'Выйти'}
+
+
+def test_html_error_preserves_service_unavailable_when_session_database_fails(api, monkeypatch):
+    client, factory = api
+    calls = 0
+
+    def database_session():
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise RuntimeError('session database unavailable')
+        return factory()
+
+    def prepared_error(*args, **kwargs):
+        raise CtfError(503, 'Сервис временно недоступен', retry_after=7)
+
+    monkeypatch.setattr(dependencies, 'SessionLocal', database_session)
+    monkeypatch.setattr(service, 'challenge_detail', prepared_error)
+    response = client.get('/challenges/1')
+
+    assert response.status_code == 503
+    assert response.headers['Retry-After'] == '7'
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert 'Сервис временно недоступен' in response.text
+    assert calls == 1
+
+
+def test_session_pages_disable_caching_for_guest_player_and_admin(api):
+    client, factory = api
+
+    for path in ['/', '/leaderboard', '/challenges/1']:
+        assert client.get(path).headers['Cache-Control'] == 'no-store'
+
+    admin_login(client, factory)
+    for path in ['/', '/leaderboard', '/challenges/1']:
+        assert client.get(path).headers['Cache-Control'] == 'no-store'
+
+    client.cookies.clear()
+    for path in ['/', '/leaderboard']:
+        assert client.get(path).headers['Cache-Control'] == 'no-store'
 
 
 def test_navigation_is_server_rendered_for_guest_player_and_admin(api):
