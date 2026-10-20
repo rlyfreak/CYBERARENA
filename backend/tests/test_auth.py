@@ -294,7 +294,9 @@ def test_login_profile_and_logout(sandbox):
     assert profile.status_code == 303
     assert profile.headers["location"] == "/login"
 
-    assert client.get("/admin").status_code == 401
+    admin = client.get("/admin")
+    assert admin.status_code == 303
+    assert admin.headers["location"] == "/login"
 
 
 def test_wrong_password(sandbox):
@@ -326,7 +328,9 @@ def test_admin_initial_password_change(sandbox):
     assert response.headers["location"] == "/change-password"
 
     # До смены пароля доступ запрещён.
-    assert client.get("/admin").status_code == 403
+    admin = client.get("/admin")
+    assert admin.status_code == 303
+    assert admin.headers["location"] == "/change-password"
 
     token = get_csrf(client, "/change-password")
 
@@ -638,7 +642,9 @@ def test_logout_revokes_captured_cookie(sandbox):
 
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
-    assert client.get("/admin").status_code == 401
+    admin = client.get("/admin")
+    assert admin.status_code == 303
+    assert admin.headers["location"] == "/login"
 
 
 def test_password_change_revokes_old_sessions(sandbox):
@@ -678,7 +684,9 @@ def test_password_change_revokes_old_sessions(sandbox):
             old_cookie,
         )
 
-        assert second_client.get("/admin").status_code == 401
+        admin = second_client.get("/admin")
+        assert admin.status_code == 303
+        assert admin.headers["location"] == "/login"
     finally:
         second_client.close()
 

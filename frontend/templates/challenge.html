@@ -5,7 +5,10 @@
 {% if task.resource_url %}
 {% set resource_path = task.resource_url.split('?')[0].split('#')[0] %}
 {% set resource_name = resource_path.rstrip('/').split('/')[-1] %}
-{% set downloadable = resource_name and '.' in resource_name and not resource_name.endswith(('.html', '.htm')) %}
+{% set resource_name_lower = resource_name|lower %}
+{% set resource_is_directory = resource_path.endswith('/') %}
+{% set resource_is_html = resource_name_lower.endswith(('.html', '.htm')) %}
+{% set downloadable = resource_name and not resource_is_directory and not resource_is_html %}
 <section aria-labelledby="challenge-resources">
 <h2 id="challenge-resources">Материалы задания</h2>
 <p><a href="{{ task.resource_url }}" target="_blank" rel="noopener" {% if downloadable %}download{% endif %}>{% if downloadable %}Скачать файл: {{ resource_name }}{% else %}Открыть материалы задания{% endif %}</a></p>
