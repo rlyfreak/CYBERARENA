@@ -6,7 +6,7 @@ COPY backend/app ./backend/app
 COPY backend/tests ./backend/tests
 COPY labs/web-01/server.py ./labs/web-01/server.py
 COPY frontend ./frontend
-COPY scripts/ctf_smoke.py ./scripts/ctf_smoke.py
+COPY scripts/ctf_smoke.py scripts/check_static_files.py ./scripts/
 COPY .github/workflows/ci.yml ./.github/workflows/ci.yml
 COPY ruff.toml ./ruff.toml
 RUN find backend scripts labs -type f -name '*.py' -exec chmod 0644 {} +
