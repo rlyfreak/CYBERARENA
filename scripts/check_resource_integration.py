@@ -68,7 +68,7 @@ def verify():
     web_status, web_headers, web_body = fetch(web_path)
     assert web_status == 200, f"WEB-02: expected 200, got {web_status}"
     assert "text/html" in web_headers.get("Content-Type", "").lower(), "WEB-02: not HTML"
-    assert re.search(rb"<!doctype\s+html|<html(?:\s|>)", web_body, re.I), "WEB-02: no HTML document"
+    assert re.search(rb"<!doctype\s+html|<html(?:\s|>)", web_body, re.IGNORECASE), "WEB-02: no HTML document"
     assert web_marker in web_body, "WEB-02: expected content is missing"
     assert_no_error_page(web_body, "WEB-02")
 
