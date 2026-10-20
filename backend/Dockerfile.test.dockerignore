@@ -10,6 +10,7 @@
 !frontend/**
 !scripts/
 !scripts/ctf_smoke.py
+!scripts/check_resource_integration.py
 !.github/
 !.github/workflows/
 !.github/workflows/ci.yml

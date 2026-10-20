@@ -1,7 +1,6 @@
 """Offline regression tests for the strict /files/ integration checker."""
 import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
