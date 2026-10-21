@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -44,8 +46,16 @@ jobs:
       - name: Check Python syntax
         run: python -m compileall -q backend/app
 
+      - name: Validate PR diff whitespace
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --check origin/main...HEAD
+          else
+            git diff --check HEAD^ HEAD
+          fi
+
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py
 
       - name: Pytest
         env:
@@ -79,7 +89,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
@@ -97,11 +107,27 @@ jobs:
           print(f"CTF_CHECK_WEB01_FLAG=CTF{{{digest}}}")
           PY
 
+      - name: Validate production Compose without printing secrets
+        env:
+          ADMIN_PASSWORD: ${{ env.CTF_CHECK_ADMIN_PASSWORD }}
+          SESSION_SECRET: ${{ env.CTF_CHECK_SESSION_SECRET }}
+          WEB01_FLAG: ${{ env.CTF_CHECK_WEB01_FLAG }}
+        run: docker compose --env-file /dev/null -f compose.yaml config --quiet
+
       - name: Start isolated Compose stack
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --build --wait --wait-timeout 90
 
       - name: Verify HTTP flows, persistence and isolation
+        env:
+          CYBERARENA_SMOKE_BASE: http://127.0.0.1:18080
+          WEB02_RESOURCE_PATH: /files/web-02/index.html
+          WEB02_EXPECTED_MARKER: CYBERARENA-WEB02-INFRA-PROBE
+          CRYPTO01_RESOURCE_PATH: /files/crypto-01/challenge.txt
+          CRYPTO01_EXPECTED_MARKER: CYBERARENA-CRYPTO01-INFRA-PROBE
         run: |
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check exec -T nginx nginx -t
+          python scripts/check_static_files.py --base http://127.0.0.1:18080 --root scripts/fixtures/files
+          python scripts/check_resource_integration.py
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py
           python scripts/ctf_smoke.py upstream-errors
