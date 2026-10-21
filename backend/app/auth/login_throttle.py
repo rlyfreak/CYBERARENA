@@ -14,14 +14,18 @@ MAX_FAILURES = 5
 WINDOW_SECONDS = 600
 BLOCK_SECONDS = 900
 _cleanup_lock = Lock()
-_last_cleanup = 0.0
+_last_cleanup = float("-inf")
+
+
+def _monotonic() -> float:
+    return time.monotonic()
 
 
 def _cleanup_expired(db, now: int) -> None:
     """Keep random, long-expired login keys from growing SQLite forever."""
     global _last_cleanup
     with _cleanup_lock:
-        tick = time.monotonic()
+        tick = _monotonic()
         if tick - _last_cleanup < 60:
             return
         db.execute(delete(LoginAttempt).where(

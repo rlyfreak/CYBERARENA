@@ -124,12 +124,14 @@ def test_random_unknown_usernames_hit_shared_budget(sandbox, monkeypatch):
 def test_expired_random_login_keys_are_pruned(sandbox, monkeypatch):
     _, factory = sandbox
     now = [10_000]
+    tick = [5.0]
     monkeypatch.setattr(login_throttle, "_now", lambda: now[0])
-    monkeypatch.setattr(login_throttle, "_last_cleanup", 0.0)
+    monkeypatch.setattr(login_throttle, "_monotonic", lambda: tick[0])
+    monkeypatch.setattr(login_throttle, "_last_cleanup", float("-inf"))
     login_throttle.record_failure("old-random")
     old_key = login_throttle._key("old-random")
     now[0] += login_throttle.WINDOW_SECONDS + 1
-    monkeypatch.setattr(login_throttle, "_last_cleanup", 0.0)
+    tick[0] += 61
     login_throttle.record_failure("new-random")
     with factory() as db:
         assert db.get(LoginAttempt, old_key) is None
