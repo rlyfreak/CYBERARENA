@@ -21,6 +21,11 @@ KNOWN = b"CYBERARENA INCIDENT REPORT\n"
 RESOURCE_URL = "/files/crypto-01/challenge.txt"
 
 
+def assert_no_flag_leak(flag: str, response_text: str) -> None:
+    if flag in response_text:
+        raise AssertionError("CTF response disclosed the challenge flag")
+
+
 def solve(material: str) -> tuple[str, str]:
     """Use only the information given to a player, independently of the builder."""
     assert material.startswith(MARKER + "\n")
@@ -32,7 +37,8 @@ def solve(material: str) -> tuple[str, str]:
     assert "Ticket: CRYPTO-01\n" in message
     assert message.endswith("\nEnd of report.\n")
     flag = message.split("Access token: ", 1)[1].split("\n", 1)[0]
-    assert security.valid_flag(flag)
+    if not security.valid_flag(flag):
+        raise AssertionError("Recovered CRYPTO-01 flag has invalid format")
     return flag, key.decode("ascii")
 
 
@@ -74,8 +80,10 @@ def test_committed_material_is_solvable_without_published_secret():
     material = MATERIAL.read_text(encoding="utf-8")
     flag, key = solve(material)
     assert "CTF{" not in material
-    assert re.fullmatch(r"CTF\{relay_mask_[0-9a-f]{24}\}", flag)
-    assert build_challenge(flag, key) == material
+    if re.fullmatch(r"CTF\{relay_mask_[0-9a-f]{24}\}", flag) is None:
+        raise AssertionError("CRYPTO-01 flag has the wrong challenge-specific format")
+    if build_challenge(flag, key) != material:
+        raise AssertionError("Committed material differs from deterministic regeneration")
     assert MATERIAL.read_bytes().decode("utf-8") == material
 
 
@@ -99,12 +107,14 @@ def publish_draft(client, factory, flag):
             "is_published": True,
         },
     )
-    assert response.status_code == 200, response.text
-    assert flag not in response.text and "flag_hash" not in response.text
+    assert response.status_code == 200
+    assert_no_flag_leak(flag, response.text)
+    assert "flag_hash" not in response.text
     service.seed_case()
     with factory() as db:
         task = db.get(Challenge, draft["id"])
-        assert task is not None and security.verify_flag(flag, task.flag_hash)
+        if task is None or not security.verify_flag(flag, task.flag_hash):
+            raise AssertionError("Published flag hash does not match the ciphertext")
     return draft["id"]
 
 
@@ -119,11 +129,13 @@ def test_crypto01_catalog_card_submission_and_isolated_scores(api):
     assert task["id"] == task_id
     assert task["category"] == "Crypto" and task["difficulty"] == "easy"
     assert task["points"] == 150 and task["resource_url"] == RESOURCE_URL
-    assert flag not in str(catalog) and "flag_hash" not in str(catalog)
+    assert_no_flag_leak(flag, str(catalog))
+    assert "flag_hash" not in str(catalog)
     assert "CRYPTO-01" in client.get("/challenges").text
     card = client.get(f"/challenges/{task_id}")
     assert card.status_code == 200 and f'href="{RESOURCE_URL}"' in card.text
-    assert "Повторяющаяся маска" in card.text and flag not in card.text
+    assert "Повторяющаяся маска" in card.text
+    assert_no_flag_leak(flag, card.text)
 
     path = f"/api/challenges/{task_id}/submissions"
     rejected_csrf = client.post(path, json={"flag": flag}, headers={"X-CSRF-Token": "wrong"})
@@ -134,7 +146,7 @@ def test_crypto01_catalog_card_submission_and_isolated_scores(api):
         assert response.json()["points_awarded"] == 0
     correct = client.post(path, json={"flag": flag})
     assert correct.status_code == 200 and correct.json()["points_awarded"] == 150
-    assert flag not in correct.text
+    assert_no_flag_leak(flag, correct.text)
     duplicate = client.post(path, json={"flag": flag})
     assert duplicate.status_code == 409 and duplicate.json()["points_awarded"] == 0
     assert client.get(f"/api/challenges/{task_id}").json()["solved"] is True
