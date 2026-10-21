@@ -68,13 +68,15 @@ git merge --ff-only origin/main
 find files -type l
 find files -name '.*' ! -name .gitkeep
 find files ! -perm -o=r
+find files ! -user "$(id -un)"
 docker compose up -d --wait nginx
 python scripts/check_static_files.py --base http://127.0.0.1:8080 --root files
 sha256sum $(git ls-files files | grep -v '/\.gitkeep$')
 ```
 
-Три команды `find` должны ничего не вывести: нет символьных ссылок,
-скрытых файлов и файлов без права чтения для nginx. `check_static_files.py`
+Четыре команды `find` должны ничего не вывести: нет символьных ссылок,
+скрытых файлов, файлов без права чтения для nginx и файлов чужого владельца
+(например, root после копирования через sudo). `check_static_files.py`
 сверяет отдаваемые байты с файлами из Git, то есть проверяет целостность.
 Контрольные суммы `sha256sum` сохраните в отчёте. Карточки публикуйте только
 после этой проверки. Если изменился код приложения, дополнительно выполните
