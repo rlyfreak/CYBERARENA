@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
 
       - name: Pytest
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
@@ -127,6 +127,7 @@ jobs:
         run: |
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check exec -T nginx nginx -t
           python scripts/check_static_files.py --base http://127.0.0.1:18080 --root scripts/fixtures/files
+          python scripts/check_files_hardening.py --base http://127.0.0.1:18080
           python scripts/check_resource_integration.py
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py

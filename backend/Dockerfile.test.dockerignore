@@ -12,6 +12,7 @@
 !scripts/ctf_smoke.py
 !scripts/check_resource_integration.py
 !scripts/check_static_files.py
+!scripts/check_files_hardening.py
 !scripts/generate_crypto_01.py
 !scripts/check_crypto_01_resource.py
 !scripts/check_crypto_01_flow.py
