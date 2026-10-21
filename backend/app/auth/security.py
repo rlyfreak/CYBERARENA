@@ -5,8 +5,8 @@ from pwdlib import PasswordHash
 
 password_hash = PasswordHash.recommended()
 MAX_CONCURRENT_PASSWORD_OPERATIONS = 2
-MAX_WAITING_PASSWORD_OPERATIONS = 4
-PASSWORD_SLOT_WAIT_SECONDS = 1.0
+MAX_WAITING_PASSWORD_OPERATIONS = 8
+PASSWORD_SLOT_WAIT_SECONDS = 2.0
 
 
 class PasswordCapacityError(Exception):

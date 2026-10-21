@@ -8,6 +8,7 @@ Example (PowerShell):
 import argparse
 import http.cookiejar
 import json
+import math
 import re
 import secrets
 import statistics
@@ -83,7 +84,7 @@ def inspect_state(container):
     return json.loads(docker("inspect", "--format", "{{json .State}}", container))
 
 
-def prepare_client(base, scenario, number, username, password, run_id):
+def prepare_client(base, scenario, number, username, password, run_id, distinct_users):
     opener = browser()
     path = "/register" if scenario == "register" else "/login"
     token = csrf(opener, base + path)
@@ -96,6 +97,8 @@ def prepare_client(base, scenario, number, username, password, run_id):
         }
     else:
         name = f"missing{run_id}{number:03d}" if scenario == "unknown" else username
+        if scenario == "correct" and distinct_users:
+            name = f"load{run_id}{number:03d}"
         form = {
             "username": name,
             "password": password if scenario == "correct" else "IncorrectLoadPassword2026!",
@@ -110,7 +113,20 @@ def main():
     parser.add_argument("--base-url", default="http://127.0.0.1:18080")
     parser.add_argument("--scenario", choices=("unknown", "wrong", "correct", "register"), required=True)
     parser.add_argument("--clients", type=int, choices=(1, 5, 10, 16, 32), required=True)
+    parser.add_argument("--distinct-users", action="store_true",
+                        help="Pre-create one account per successful-login client")
+    parser.add_argument("--arrival-seconds", type=float, default=0,
+                        help="Spread first attempts evenly over this many seconds")
+    parser.add_argument("--retry-503", type=int, default=0,
+                        help="Additional attempts after HTTP 503 (maximum 2)")
+    parser.add_argument("--retry-delay", type=float, default=1.1,
+                        help="Seconds between attempts after HTTP 503")
     args = parser.parse_args()
+    if (not math.isfinite(args.arrival_seconds) or not 0 <= args.arrival_seconds <= 10
+            or not 0 <= args.retry_503 <= 2
+            or not math.isfinite(args.retry_delay) or not 1 <= args.retry_delay <= 10
+            or (args.distinct_users and args.scenario != "correct")):
+        parser.error("Invalid arrival/retry settings or distinct users require correct login")
     parsed = urllib.parse.urlparse(args.base_url)
     if (args.project != "cyberarena-auth-oom"
             or parsed.scheme != "http" or parsed.path not in ("", "/")
@@ -147,9 +163,16 @@ def main():
 
     create_account(recovery_username)
     if args.scenario in ("wrong", "correct"):
-        create_account(username)
+        if args.distinct_users:
+            for i in range(args.clients):
+                create_account(f"load{run_id}{i:03d}")
+            # Refill the global budget after creating pre-existing test users.
+            time.sleep(8)
+        else:
+            create_account(username)
 
-    clients = [prepare_client(base, args.scenario, i, username, password, run_id)
+    clients = [prepare_client(base, args.scenario, i, username, password, run_id,
+                              args.distinct_users)
                for i in range(args.clients)]
     start_event = threading.Event()
     stop_samples = threading.Event()
@@ -163,23 +186,40 @@ def main():
                 pass
             stop_samples.wait(0.2)
 
-    def work(client):
+    release_time = [0.0]
+
+    def work(number, client):
         start_event.wait()
-        try:
-            return post_form(*client)
-        except (OSError, TimeoutError):
-            return "timeout", 15.0
+        target = release_time[0] + (
+            number * args.arrival_seconds / max(1, args.clients - 1)
+        )
+        time.sleep(max(0, target - time.monotonic()))
+        attempts = []
+        for attempt in range(args.retry_503 + 1):
+            if attempt:
+                time.sleep(args.retry_delay)
+            try:
+                result = post_form(*client)
+            except (OSError, TimeoutError):
+                result = ("timeout", 15.0)
+            attempts.append(result)
+            if result[0] != 503:
+                break
+        return attempts
 
     cpu_started = time.monotonic()
     before_cpu = cpu_usec(container)
     idle_memory = int(cgroup(container, "memory.current"))
     started = time.monotonic()
+    release_time[0] = started
     sampler = threading.Thread(target=sample_memory, daemon=True)
     sampler.start()
     with ThreadPoolExecutor(max_workers=args.clients) as pool:
-        futures = [pool.submit(work, client) for client in clients]
+        futures = [pool.submit(work, i, client) for i, client in enumerate(clients)]
         start_event.set()
-        results = [future.result(timeout=25) for future in futures]
+        attempts = [future.result(timeout=25) for future in futures]
+    results = [client_attempts[0] for client_attempts in attempts]
+    final_results = [client_attempts[-1] for client_attempts in attempts]
     elapsed = time.monotonic() - started
     stop_samples.set()
     sampler.join(timeout=3)
@@ -208,8 +248,14 @@ def main():
     oom_kill = int(re.search(r"^oom_kill (\d+)$", events, re.MULTILINE).group(1))
     durations = sorted(duration for _, duration in results)
     counts = {str(status): sum(s == status for s, _ in results) for status, _ in results}
+    final_counts = {str(status): sum(s == status for s, _ in final_results)
+                    for status, _ in final_results}
     report = {
         "scenario": args.scenario, "clients": args.clients, "statuses": counts,
+        "final_statuses": final_counts,
+        "retry_attempts": sum(len(client_attempts) - 1 for client_attempts in attempts),
+        "arrival_seconds": args.arrival_seconds,
+        "distinct_users": args.distinct_users,
         "idle_mib": round(idle_memory / 1048576, 2),
         "mean_sample_mib": round(statistics.mean(samples) / 1048576, 2) if samples else None,
         "peak_mib": round(int(cgroup(container, "memory.peak")) / 1048576, 2),
@@ -225,9 +271,10 @@ def main():
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     expected = {"unknown": "401", "wrong": "401", "correct": "303", "register": "200"}
     if (not state_after["Running"] or state_after["OOMKilled"] or oom_kill
-            or restarts_after != restarts_before or counts.get("timeout", 0)
-            or any(str(status).startswith("5") and status != 503 for status, _ in results)
-            or counts.get(expected[args.scenario], 0) == 0
+            or restarts_after != restarts_before or final_counts.get("timeout", 0)
+            or any(str(status).startswith("5") and status != 503
+                   for client_attempts in attempts for status, _ in client_attempts)
+            or final_counts.get(expected[args.scenario], 0) == 0
             or health != 200 or ctf_status != 401 or recovery != 303):
         raise SystemExit(1)
 
