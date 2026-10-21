@@ -46,3 +46,48 @@ python scripts/check_static_files.py --base http://127.0.0.1:18080 --root script
 frontend и скачивание в браузере. Одни fixtures не закрывают К-2 аудита:
 нужны условия, реальные материалы, настроенные флаги и write-up обоих заданий.
 Не публикуйте черновики как готовые задания.
+
+## Публикация и откат на рабочем стенде
+
+Материалы попадают в `files/` только через `main` (PR с проверкой CI).
+`files/` подключён к nginx как каталог хоста: он не входит в образы и volume
+базы, поэтому `docker compose up -d --build`, `--force-recreate` и
+`docker compose down` его не удаляют. `scripts/reset-data.sh` удаляет только
+базу.
+
+Команды для Linux/WSL из корня репозитория, стенд уже запущен. На время
+обновления nginx останавливается: участник не получит смесь старых и новых
+файлов, платформа недоступна несколько секунд.
+
+```bash
+git fetch origin
+git diff --stat HEAD origin/main -- files/
+git rev-parse HEAD > ../cyberarena-files.prev
+docker compose stop nginx
+git merge --ff-only origin/main
+find files -type l
+find files -name '.*' ! -name .gitkeep
+find files ! -perm -o=r
+docker compose up -d --wait nginx
+python scripts/check_static_files.py --base http://127.0.0.1:8080 --root files
+sha256sum $(git ls-files files | grep -v '/\.gitkeep$')
+```
+
+Три команды `find` должны ничего не вывести: нет символьных ссылок,
+скрытых файлов и файлов без права чтения для nginx. `check_static_files.py`
+сверяет отдаваемые байты с файлами из Git, то есть проверяет целостность.
+Контрольные суммы `sha256sum` сохраните в отчёте. Карточки публикуйте только
+после этой проверки. Если изменился код приложения, дополнительно выполните
+`docker compose up -d --build --wait`.
+
+Откат материалов к версии до обновления:
+
+```bash
+docker compose stop nginx
+git restore --source="$(cat ../cyberarena-files.prev)" --worktree -- files/
+docker compose up -d --wait nginx
+python scripts/check_static_files.py --base http://127.0.0.1:8080 --root files
+```
+
+После исправления в `main` вернитесь к актуальной версии:
+`git restore --worktree -- files/` и повторите публикацию.
