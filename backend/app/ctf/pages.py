@@ -6,14 +6,14 @@ from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from ..auth.csrf import get_csrf_token, validate_csrf
-from ..auth.dependencies import get_current_user, require_admin
+from ..auth.dependencies import get_current_user, get_optional_user, require_admin
 from ..models import User
 from ..templates import templates
 from . import schemas, service
 from .routes import Limit, Offset
 
 router = APIRouter(include_in_schema=False)
-Admin = Annotated[User, Depends(require_admin)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 Model = TypeVar("Model", bound=BaseModel)
 
 
@@ -28,6 +28,20 @@ def page_user(request: Request):
 
 
 Player = Annotated[User, Depends(page_user)]
+
+
+def page_admin(request: Request):
+    try:
+        return require_admin(get_current_user(request))
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            raise HTTPException(303, headers={'Location': '/login'}) from exc
+        if exc.status_code == 403 and exc.detail == 'Password change required':
+            raise HTTPException(303, headers={'Location': '/change-password'}) from exc
+        raise service.CtfError(403, 'Доступ к управлению есть только у администратора') from exc
+
+
+PageAdmin = Annotated[User, Depends(page_admin)]
 
 
 def render(request, name, user=None, status_code=200, **context):
@@ -83,31 +97,31 @@ def history_page(request: Request, user: Player, offset: Offset = 0, limit: Limi
 
 
 @router.get('/leaderboard')
-def leaderboard_page(request: Request, offset: Offset = 0, limit: Limit = 50):
-    return render(request, 'leaderboard.html', rows=service.leaderboard(offset, limit),
+def leaderboard_page(request: Request, user: OptionalUser, offset: Offset = 0, limit: Limit = 50):
+    return render(request, 'leaderboard.html', user, rows=service.leaderboard(offset, limit),
                   offset=offset, limit=limit)
 
 
 @router.get('/admin')
-def admin_page(request: Request, user: Admin, offset: Offset = 0, limit: Limit = 50):
+def admin_page(request: Request, user: PageAdmin, offset: Offset = 0, limit: Limit = 50):
     return render(request, 'admin.html', user,
                   tasks=service.catalog(user.id, offset, limit, include_hidden=True),
                   state=service.results_state(), offset=offset, limit=limit)
 
 
 @router.get('/admin/challenges/new')
-def admin_new(request: Request, user: Admin):
+def admin_new(request: Request, user: PageAdmin):
     return render(request, 'admin_challenge.html', user, task=None)
 
 
 @router.get('/admin/challenges/{challenge_id}')
-def admin_edit(challenge_id: int, request: Request, user: Admin):
+def admin_edit(challenge_id: int, request: Request, user: PageAdmin):
     return render(request, 'admin_challenge.html', user,
                   task=service.challenge_detail(user.id, challenge_id, include_hidden=True))
 
 
 @router.post('/admin/challenges/new')
-async def admin_create_form(request: Request, user: Admin):
+async def admin_create_form(request: Request, user: PageAdmin):
     data = await challenge_form_data(request)
     validate_csrf(request, data.pop('csrf_token', None))
     try:
@@ -121,7 +135,7 @@ async def admin_create_form(request: Request, user: Admin):
 
 
 @router.post('/admin/challenges/{challenge_id}')
-async def admin_edit_form(challenge_id: int, request: Request, user: Admin):
+async def admin_edit_form(challenge_id: int, request: Request, user: PageAdmin):
     data = await challenge_form_data(request)
     validate_csrf(request, data.pop('csrf_token', None))
     try:
@@ -140,20 +154,20 @@ async def admin_edit_form(challenge_id: int, request: Request, user: Admin):
 
 
 @router.get('/admin/submissions')
-def admin_history(request: Request, user: Admin, offset: Offset = 0, limit: Limit = 50):
+def admin_history(request: Request, user: PageAdmin, offset: Offset = 0, limit: Limit = 50):
     return render(request, 'submissions.html', user, attempts=service.history(None, offset, limit),
                   offset=offset, limit=limit, admin=True)
 
 
 @router.post('/admin/seed-case')
-def case_drafts(request: Request, user: Admin, csrf_token: str = Form('')):
+def case_drafts(request: Request, user: PageAdmin, csrf_token: str = Form('')):
     validate_csrf(request, csrf_token)
     service.seed_case()
     return RedirectResponse('/admin', 303)
 
 
 @router.post('/admin/results/reset')
-def admin_reset(request: Request, user: Admin, confirmation: str = Form(''),
+def admin_reset(request: Request, user: PageAdmin, confirmation: str = Form(''),
                 expected_generation: int = Form(...), csrf_token: str = Form('')):
     validate_csrf(request, csrf_token)
     payload = validated(schemas.ResetInput, {
