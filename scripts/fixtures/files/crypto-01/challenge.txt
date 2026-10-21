@@ -1,0 +1,2 @@
+CYBERARENA-CRYPTO01-INFRA-PROBE
+This is a static delivery test fixture, not a playable CTF challenge or a flag.
