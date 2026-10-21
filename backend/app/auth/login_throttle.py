@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import os
 import time
+from threading import Lock
 
 from sqlalchemy import case, delete
 from sqlalchemy.dialects.sqlite import insert
@@ -12,6 +13,22 @@ from ..models import LoginAttempt
 MAX_FAILURES = 5
 WINDOW_SECONDS = 600
 BLOCK_SECONDS = 900
+_cleanup_lock = Lock()
+_last_cleanup = 0.0
+
+
+def _cleanup_expired(db, now: int) -> None:
+    """Keep random, long-expired login keys from growing SQLite forever."""
+    global _last_cleanup
+    with _cleanup_lock:
+        tick = time.monotonic()
+        if tick - _last_cleanup < 60:
+            return
+        db.execute(delete(LoginAttempt).where(
+            LoginAttempt.window_started < now - WINDOW_SECONDS,
+            LoginAttempt.blocked_until <= now,
+        ))
+        _last_cleanup = tick
 
 
 def _now() -> int:
@@ -75,6 +92,7 @@ def record_failure(username: str) -> int:
 
     with SessionLocal.begin() as db:
         db.execute(statement)
+        _cleanup_expired(db, now)
         attempt = db.get(LoginAttempt, key)
 
         if attempt is None:
