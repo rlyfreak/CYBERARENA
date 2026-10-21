@@ -10,7 +10,8 @@ COPY scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_st
 COPY files/crypto-01/challenge.txt ./files/crypto-01/challenge.txt
 COPY .github/workflows/ci.yml ./.github/workflows/ci.yml
 COPY ruff.toml ./ruff.toml
-RUN find backend scripts labs -type f -name '*.py' -exec chmod 0644 {} +
+RUN find backend scripts labs -type f -name '*.py' -exec chmod 0644 {} + \
+ && chmod 0755 scripts/auth_load.py
 ENV PYTHONPATH=/code/backend \
     PYTHONDONTWRITEBYTECODE=1
 CMD ["python", "-m", "pytest", "backend/tests", "-q"]
