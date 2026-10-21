@@ -10,6 +10,11 @@
 !frontend/**
 !scripts/
 !scripts/ctf_smoke.py
+!scripts/generate_crypto_01.py
+!scripts/check_crypto_01_resource.py
+!files/
+!files/crypto-01/
+!files/crypto-01/challenge.txt
 !.github/
 !.github/workflows/
 !.github/workflows/ci.yml

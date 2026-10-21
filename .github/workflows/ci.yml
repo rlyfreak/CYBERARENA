@@ -45,7 +45,7 @@ jobs:
         run: python -m compileall -q backend/app
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py
 
       - name: Pytest
         env:
@@ -79,7 +79,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
