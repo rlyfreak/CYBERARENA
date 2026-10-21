@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
 
       - name: Pytest
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
@@ -107,17 +107,43 @@ jobs:
           print(f"CTF_CHECK_WEB01_FLAG=CTF{{{digest}}}")
           PY
 
+      - name: Validate production Compose without printing secrets
+        env:
+          ADMIN_PASSWORD: ${{ env.CTF_CHECK_ADMIN_PASSWORD }}
+          SESSION_SECRET: ${{ env.CTF_CHECK_SESSION_SECRET }}
+          WEB01_FLAG: ${{ env.CTF_CHECK_WEB01_FLAG }}
+        run: docker compose --env-file /dev/null -f compose.yaml config --quiet
+
       - name: Start isolated Compose stack
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --build --wait --wait-timeout 90
 
-      - name: Verify HTTP flows, persistence and isolation
+      - name: Verify infrastructure fixtures, HTTP flows, persistence and isolation
+        env:
+          CYBERARENA_SMOKE_BASE: http://127.0.0.1:18080
+          WEB02_RESOURCE_PATH: /files/web-02/index.html
+          WEB02_EXPECTED_MARKER: CYBERARENA-WEB02-INFRA-PROBE
+          CRYPTO01_RESOURCE_PATH: /files/crypto-01/challenge.txt
+          CRYPTO01_EXPECTED_MARKER: CYBERARENA-CRYPTO01-INFRA-PROBE
         run: |
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check exec -T nginx nginx -t
+          python scripts/check_static_files.py --base http://127.0.0.1:18080 --root scripts/fixtures/files
+          python scripts/check_resource_integration.py
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py
           python scripts/ctf_smoke.py upstream-errors
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check restart app
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/ctf_smoke.py verify
+
+      - name: Verify real CRYPTO-01 delivery, publication and persistence
+        run: |
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check up -d --no-deps --wait nginx
+          python scripts/check_static_files.py --base http://127.0.0.1:18080 --root files
+          python scripts/check_crypto_01_resource.py --base http://127.0.0.1:18080
+          python scripts/check_crypto_01_flow.py prepare
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check restart app
+          docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
+          python scripts/check_crypto_01_flow.py verify
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check stop lab-web
           python scripts/ctf_smoke.py lab-down
 

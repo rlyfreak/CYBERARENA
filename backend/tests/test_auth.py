@@ -15,6 +15,7 @@ from app.migrations import user_auth
 os.environ["SESSION_SECRET"] = "cyberarena-isolated-test-secret-2026"
 
 from app.auth import bootstrap, dependencies, routes
+from app.auth.public_throttle import PublicAuthBudget
 from app.auth.security import verify_password
 from app.database import Base
 from app.main import app
@@ -106,8 +107,7 @@ def test_invalid_stored_csrf_is_rejected_and_replaced(stored):
     validate_csrf(request, token)
 
 
-@pytest.fixture
-def sandbox(monkeypatch):
+def _sandbox_setup(monkeypatch):
     """Отдельная SQLite-база для каждого теста."""
 
     test_engine = create_engine(
@@ -131,6 +131,7 @@ def sandbox(monkeypatch):
     # Все проверяемые обработчики работают
     # исключительно с тестовой базой.
     monkeypatch.setattr(routes, "SessionLocal", TestingSession)
+    monkeypatch.setattr(routes, "public_auth_budget", PublicAuthBudget())
     monkeypatch.setattr(bootstrap, "SessionLocal", TestingSession)
     monkeypatch.setattr(dependencies, "SessionLocal", TestingSession)
     from app.ctf import service
@@ -156,6 +157,11 @@ def sandbox(monkeypatch):
 
     client.close()
     test_engine.dispose()
+
+
+@pytest.fixture
+def sandbox(monkeypatch):
+    yield from _sandbox_setup(monkeypatch)
 
 
 def get_csrf(client, path):
