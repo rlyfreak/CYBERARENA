@@ -21,6 +21,7 @@ if not re.fullmatch(r'cyberarena-ctf-check(?:-[a-z0-9-]+)?', PROJECT):
 FALLBACK_MESSAGE = 'Учебная лаборатория сейчас недоступна'
 UPSTREAM_ERRORS = (502, 503, 504)
 OUTAGE_WAIT_SECONDS = 20
+LAB_CSP = 'sandbox allow-scripts'
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -149,15 +150,35 @@ def verify_upstream_errors(browser):
     print(json.dumps({'phase': 'upstream-errors', 'statuses': list(UPSTREAM_ERRORS), 'fallback': True}))
 
 
+def verify_lab_isolation(browser):
+    probe_host = {'Host': 'ctf-fallback-probe'}
+    status, body, _ = browser.request('/lab/echo-cookie', parse_json=False,
+                                      headers={**probe_host, 'Cookie': 'cyberarena_session=leak-test'})
+    if status != 200 or body != 'cookie=[]':
+        raise AssertionError('Platform cookies reached the lab')
+    status, _, headers = browser.request('/lab/set-cookie', headers=probe_host, parse_json=False)
+    if status != 200 or headers.get_all('Set-Cookie'):
+        raise AssertionError('The lab was allowed to set cookies')
+    status, _, headers = browser.request('/lab/', parse_json=False)
+    if status != 200 or headers.get('Content-Security-Policy') != LAB_CSP:
+        raise AssertionError('Lab pages are not sandboxed away from the platform origin')
+    print(json.dumps({'phase': 'lab-isolation', 'cookie_forwarded': False,
+                      'set_cookie_hidden': True, 'csp': LAB_CSP}))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('phase', choices=['prepare', 'verify', 'lab-down', 'upstream-errors'])
+    parser.add_argument('phase', choices=['prepare', 'verify', 'lab-down', 'upstream-errors',
+                                          'lab-isolation'])
     args = parser.parse_args()
     if args.phase == 'lab-down':
         verify_lab_outage(Browser())
         return
     if args.phase == 'upstream-errors':
         verify_upstream_errors(Browser())
+        return
+    if args.phase == 'lab-isolation':
+        verify_lab_isolation(Browser())
         return
     password = os.environ['CTF_CHECK_ADMIN_PASSWORD']
     flag = 'CTF{' + hashlib.sha256((password + 'WEB-01').encode()).hexdigest() + '}'

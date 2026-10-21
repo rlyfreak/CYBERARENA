@@ -131,6 +131,7 @@ jobs:
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py
           python scripts/ctf_smoke.py upstream-errors
+          python scripts/ctf_smoke.py lab-isolation
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check restart app
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/ctf_smoke.py verify
