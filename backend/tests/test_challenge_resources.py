@@ -194,6 +194,7 @@ def test_resource_admin_forms_and_player_rendering(api):
     task_id = int(edit_path.rsplit("/", 1)[1])
     player_page = client.get(f"/challenges/{task_id}")
     assert 'href="/lab/?q=&#34;&lt;&amp;x=1"' in player_page.text
+    assert "Открыть материалы задания" in player_page.text
     assert "Средняя" in player_page.text and "Средняя" in client.get("/challenges").text
     data.pop("code")
     data["flag"] = ""
@@ -229,6 +230,25 @@ def test_web01_resource_is_data_driven(api):
         assert task is not None
         task.resource_url = None
     assert 'target="_blank"' not in client.get("/challenges/1").text
+
+
+def test_challenge_resource_distinguishes_page_and_file(api):
+    client, factory = api
+    cases = [
+        ("/files/web-02.v1/", "Открыть материалы задания", False),
+        ("/files/INDEX.HTML?version=2#intro", "Открыть материалы задания", False),
+        ("/files/guide.HtM#task", "Открыть материалы задания", False),
+        ("/files/crypto-01/ciphertext.txt?version=2#data", "Скачать файл: ciphertext.txt", True),
+        ("/files/crypto-01/README?version=2", "Скачать файл: README", True),
+    ]
+    for resource_url, label, downloadable in cases:
+        with factory.begin() as db:
+            task = db.get(Challenge, 1)
+            assert task is not None
+            task.resource_url = resource_url
+        page = client.get("/challenges/1")
+        assert label in page.text
+        assert (' download' in page.text) is downloadable
 
 
 def test_parallel_repeat_releases_verification_capacity(ctf_db, monkeypatch):
