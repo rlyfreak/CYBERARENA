@@ -12,6 +12,21 @@
 
 HTTPS для публичного сайта, защита ветки GitHub и облачная инфраструктура не входят в локальную приёмку. Не откладывайте из-за них обязательный сценарий.
 
+## Схема локального стенда
+
+```mermaid
+flowchart LR
+    Browser[Браузер] -->|localhost:8080| Nginx[nginx · app-net]
+    Nginx --> App[FastAPI + Jinja2 · app-net]
+    App --> DB[(SQLite · Docker volume)]
+    Nginx --> Gateway[lab-gateway · app-net и lab-net]
+    Gateway --> Lab[lab-web · lab-net]
+    Files[Файлы WEB-02 и CRYPTO-01] -->|только чтение| Nginx
+```
+
+У `lab-web` нет ребра к `app`, SQLite или Docker Socket. Через gateway разрешён
+только фиксированный маршрут учебной лаборатории.
+
 ## Подготовка демонстрационного ноутбука
 
 1. Установите Docker с Compose и подготовьте `.env` по [README](../README.md). Сохраните действующие `.env`, `SESSION_SECRET` и том SQLite при обновлении. Не выводите секреты в отчёты или логи.
