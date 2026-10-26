@@ -19,6 +19,7 @@
 !scripts/generate_crypto_01.py
 !scripts/check_crypto_01_resource.py
 !scripts/check_crypto_01_flow.py
+!scripts/check_web_02_flow.py
 !scripts/auth_load.py
 !files/
 !files/crypto-01/
