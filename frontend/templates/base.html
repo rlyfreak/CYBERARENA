@@ -2,8 +2,19 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}CYBERARENA{% endblock %}</title>
 <style>
-:root{color-scheme:dark}body{background:#111118;color:#ebedf4;font:16px/1.6 system-ui,sans-serif;max-width:1100px;margin:30px auto;padding:0 20px}a{color:#a2ff85}nav{display:flex;flex-wrap:wrap;gap:20px;padding:16px 0;border-bottom:1px solid #444}h1{line-height:1.25}article,.card{padding:22px;border:1px solid #454554;border-radius:12px;background:#1c1c27;margin:18px 0}input,textarea,select,button{font:inherit;padding:9px;border:1px solid #686879;border-radius:6px;max-width:100%;box-sizing:border-box}input:not([type=checkbox]),textarea{width:100%}textarea{min-height:160px}label{display:block;margin:14px 0}button{background:#a2ff85;color:#111;cursor:pointer}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #454554;padding:12px}small,.muted{color:#b5b5c7}.message{border-left:4px solid #a2ff85;padding:12px}.description{white-space:pre-wrap;overflow-wrap:anywhere}.scroll{overflow:auto}.danger{border-color:#ec9b91}.pagination{display:flex;gap:24px;margin:24px 0}.tag{color:#a2ff85}code{overflow-wrap:anywhere}
+:root{color-scheme:dark}body{background:#111118;color:#ebedf4;font:16px/1.6 system-ui,sans-serif;max-width:1100px;margin:30px auto;padding:0 20px}a{color:#a2ff85}nav{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:16px 0;border-bottom:1px solid #444}.nav-form{display:inline;margin:0}.nav-button{border:0;background:none;color:#a2ff85;padding:0;text-decoration:underline}h1{line-height:1.25}article,.card{padding:22px;border:1px solid #454554;border-radius:12px;background:#1c1c27;margin:18px 0}input,textarea,select,button{font:inherit;padding:9px;border:1px solid #686879;border-radius:6px;max-width:100%;box-sizing:border-box}input:not([type=checkbox]),textarea{width:100%}textarea{min-height:160px}label{display:block;margin:14px 0}button{background:#a2ff85;color:#111;cursor:pointer}table{border-collapse:collapse;width:100%}td,th{text-align:left;border-bottom:1px solid #454554;padding:12px}small,.muted{color:#b5b5c7}.message{border-left:4px solid #a2ff85;padding:12px}.description{white-space:pre-wrap;overflow-wrap:anywhere}.scroll{overflow:auto}.danger{border-color:#ec9b91}.pagination{display:flex;gap:24px;margin:24px 0}.tag{color:#a2ff85}code{overflow-wrap:anywhere}
 </style></head><body>
-<nav aria-label="Навигация"><a href="/">CYBERARENA</a><a href="/challenges">Задания</a><a href="/leaderboard">Рейтинг</a><a href="/submissions">Мои попытки</a><a href="/profile">Профиль</a>{% if user and user.is_admin %}<a href="/admin">Управление</a>{% endif %}<a href="/login">Вход</a><a href="/register">Регистрация</a></nav>
+<nav aria-label="Навигация">
+<a href="/">CYBERARENA</a><a href="/leaderboard">Рейтинг</a>
+{% if user %}
+{% if user.must_change_password %}<a href="/change-password">Сменить пароль</a>{% else %}
+<a href="/challenges">Задания</a><a href="/submissions">Мои попытки</a><a href="/profile">Профиль</a>
+{% if user.is_admin %}<a href="/admin">Управление</a>{% endif %}
+{% endif %}
+<form class="nav-form" action="/logout" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button" type="submit">Выйти</button></form>
+{% else %}
+<a href="/challenges">Задания</a><a href="/login">Вход</a><a href="/register">Регистрация</a>
+{% endif %}
+</nav>
 <main>{% block content %}{% endblock %}</main>
 </body></html>

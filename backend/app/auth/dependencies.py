@@ -7,23 +7,30 @@ from ..models import User
 from .session_store import get_session_user
 
 
-def get_current_user(request: Request) -> User:
+def get_optional_user(request: Request) -> User | None:
+    """Resolve a valid server-side session without requiring authentication."""
     with SessionLocal() as db:
         user = get_session_user(request, db)
+    request.state.user = user
+    return user
 
-        if user is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Authentication required",
-            )
 
-        if user.must_change_password:
-            raise HTTPException(
-                status_code=403,
-                detail="Password change required",
-            )
+def get_current_user(request: Request) -> User:
+    user = get_optional_user(request)
 
-        return user
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+        )
+
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=403,
+            detail="Password change required",
+        )
+
+    return user
 
 
 def require_admin(

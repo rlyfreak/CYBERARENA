@@ -1,6 +1,5 @@
 """Check /files/ hardening that byte checks cannot see. Test stack only."""
 import argparse
-import re
 import subprocess
 import urllib.error
 import urllib.request
@@ -45,9 +44,15 @@ def verify(base, text_path, js_path):
     mounts = docker('inspect', '-f', f'{{{{range .Mounts}}}}{{{{if eq .Destination "{FILES_DIR}"}}}}'
                     '{{.RW}}{{end}}{{end}}', NGINX)
     require(mounts.returncode == 0 and mounts.stdout.strip() == 'false', 'materials mount is not read-only')
-    config = docker('exec', NGINX, 'nginx', '-T')
-    require(config.returncode == 0 and re.search(r'disable_symlinks\s+on;', config.stdout),
-            'disable_symlinks is not enabled')
+    # A control file and existing readable target rule out false success via 404.
+    status, _ = request(base, '/files/symlink-probe/control.txt')
+    require(status == 200, 'symlink fixture control is unavailable')
+    link = docker('exec', NGINX, 'test', '-L', f'{FILES_DIR}/symlink-probe/escape.txt')
+    target = docker('exec', NGINX, 'cat', '/usr/share/nginx/private-probe.txt')
+    require(link.returncode == 0 and target.returncode == 0 and target.stdout.strip(),
+            'symlink fixture or its readable private target is missing')
+    status, _ = request(base, '/files/symlink-probe/escape.txt')
+    require(status == 403, f'private symlink target is not denied: HTTP {status}')
     print('PASS: /files/ read-only mount, no writes, GET only, text and JS types, symlinks disabled')
 
 

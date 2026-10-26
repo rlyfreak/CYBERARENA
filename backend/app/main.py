@@ -1,14 +1,17 @@
 import os
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 # регистрациямоделлейвsqlalchemyпередсозданиемтаблиц
-from . import models  # noqa: F401
+from . import models
 from .auth.bootstrap import bootstrap_admin
+from .auth.csrf import get_csrf_token
+from .auth.dependencies import get_optional_user
 from .auth.routes import router as auth_router
 from .ctf.body_limit import CtfBodyLimit
 from .ctf.pages import router as ctf_pages
@@ -49,8 +52,13 @@ async def ctf_error(request: Request, error: CtfError):
     if error.retry_after is not None:
         headers['Retry-After'] = str(error.retry_after)
     if not request.url.path.startswith('/api/'):
+        user = getattr(request.state, 'user', None)
         return templates.TemplateResponse(
-            request, 'ctf_error.html', {'message': error.message, 'user': None},
+            request, 'ctf_error.html', {
+                'message': error.message,
+                'user': user,
+                'csrf_token': get_csrf_token(request) if user is not None else None,
+            },
             status_code=error.status, headers=headers,
         )
     return JSONResponse({"detail": error.message}, status_code=error.status, headers=headers)
@@ -86,8 +94,14 @@ app.add_middleware(CtfBodyLimit)
 
 
 @app.get("/", include_in_schema=False)
-async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+async def index(
+    request: Request,
+    user: Annotated[models.User | None, Depends(get_optional_user)],
+):
+    return templates.TemplateResponse(request, "index.html", {
+        "user": user,
+        "csrf_token": get_csrf_token(request),
+    }, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/health", tags=["System"])
