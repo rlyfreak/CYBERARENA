@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 
 from app.auth import dependencies
 from app.auth import routes as auth_routes
-from app.ctf import cli, service
+from app.ctf import cli, pages, service
 from app.ctf.service import CtfError
 from app.models import AuthSession, Challenge, User
 from test_ctf_api import FLAG, admin_login
@@ -179,6 +179,27 @@ def test_participant_pages_and_form_flow(api):
     client.cookies.clear()
     assert client.get('/challenges').headers['location'] == '/login'
     assert client.get('/leaderboard').status_code == 200
+
+
+def test_participant_form_retries_transient_flag_capacity(api, monkeypatch):
+    client, _ = api
+    original = service.submit_flag
+    calls = 0
+
+    def temporarily_busy(*args):
+        nonlocal calls
+        calls += 1
+        if calls <= 2:
+            raise CtfError(503, 'Flag verification busy; retry later', retry_after=1)
+        return original(*args)
+
+    monkeypatch.setattr(service, 'submit_flag', temporarily_busy)
+    monkeypatch.setattr(pages, 'sleep', lambda _: None)
+    csrf = token(client.get('/challenges/1'))
+    response = client.post('/challenges/1', data={'flag': FLAG, 'csrf_token': csrf})
+    assert response.status_code == 303
+    assert calls == 3
+    assert 'Баллы начислены' in client.get(response.headers['location']).text
 
 
 def test_admin_browser_create_edit_hide_and_escape(api):
