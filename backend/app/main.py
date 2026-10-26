@@ -82,13 +82,22 @@ SESSION_SECRET = os.getenv("SESSION_SECRET")
 
 if not SESSION_SECRET or len(SESSION_SECRET) < 32:
     raise RuntimeError("SESSION_SECRET должен содержать минимум 32 символа")
+
+
+def session_cookie_secure() -> bool:
+    value = os.getenv("SESSION_COOKIE_SECURE", "false").strip().lower()
+    if value not in {"true", "false"}:
+        raise RuntimeError("SESSION_COOKIE_SECURE must be true or false")
+    return value == "true"
+
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="cyberarena_session",
     max_age=60 * 60 * 8,
     same_site="lax",
-    https_only=False,
+    https_only=session_cookie_secure(),
 )
 app.add_middleware(CtfBodyLimit)
 

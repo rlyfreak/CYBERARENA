@@ -251,6 +251,28 @@ def test_challenge_resource_distinguishes_page_and_file(api):
         assert (' download' in page.text) is downloadable
 
 
+@pytest.mark.parametrize(
+    "resource_url,label,downloadable",
+    [
+        ("/files/task%2Ehtml", "Открыть материалы задания", False),
+        ("/files/task%2eHTM?view=1", "Открыть материалы задания", False),
+        ("/files/web-02%2F", "Открыть материалы задания", False),
+        ("/files/task%2Ezip", "Скачать файл: task.zip", True),
+    ],
+)
+def test_encoded_resource_links_use_browser_path(api, resource_url, label, downloadable):
+    client, factory = api
+    authenticate(client, factory, 1)
+    with factory.begin() as db:
+        task = db.get(Challenge, 1)
+        assert task is not None
+        task.resource_url = resource_url
+    page = client.get("/challenges/1")
+    assert page.status_code == 200
+    assert label in page.text
+    assert (' download' in page.text) is downloadable
+
+
 def test_parallel_repeat_releases_verification_capacity(ctf_db, monkeypatch):
     factory, _ = ctf_db
     original = security.verify_flag
