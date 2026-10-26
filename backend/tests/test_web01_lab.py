@@ -18,6 +18,13 @@ spec.loader.exec_module(lab_module)
 TEST_FLAG = "CTF{web01_pytest_flag}"
 
 
+def test_lab_requires_a_submit_compatible_flag():
+    assert lab_module.valid_flag(TEST_FLAG)
+    assert not lab_module.valid_flag("CYBERARENA{old_demo_flag}")
+    assert not lab_module.valid_flag("")
+
+
+
 @pytest.fixture
 def lab_server(monkeypatch):
     monkeypatch.setenv("WEB01_FLAG", TEST_FLAG)
