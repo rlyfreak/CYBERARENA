@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/check_web_02_flow.py scripts/auth_load.py
 
       - name: Pytest
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/check_web_02_flow.py scripts/auth_load.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
@@ -143,15 +143,17 @@ jobs:
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/ctf_smoke.py verify
 
-      - name: Verify real CRYPTO-01 delivery, publication and persistence
+      - name: Verify real CRYPTO-01 and WEB-02 delivery, solves and persistence
         run: |
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check up -d --no-deps --wait nginx
           python scripts/check_static_files.py --base http://127.0.0.1:18080 --root files
           python scripts/check_crypto_01_resource.py --base http://127.0.0.1:18080
           python scripts/check_crypto_01_flow.py prepare
+          python scripts/check_web_02_flow.py prepare
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check restart app
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -f compose.crypto-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/check_crypto_01_flow.py verify
+          python scripts/check_web_02_flow.py verify
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check stop lab-web
           python scripts/ctf_smoke.py lab-down
 
