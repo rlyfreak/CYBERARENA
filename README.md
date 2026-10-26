@@ -25,13 +25,23 @@ Self-hosted CTF platform for cybersecurity training. Developed by 404клуб fo
 
    Секрет должен содержать **минимум 32 символа**. Результат команды — секрет:
    не публикуйте его и не отправляйте в логи CI, отчёты или переписку.
-4. Соберите и запустите платформу:
+4. Задайте в `.env` `WEB01_FLAG` в формате `CTF{...}` с собственным
+   случайным токеном. Для генерации подойдёт:
+
+   ```text
+   python -c "import secrets; print('CTF{' + secrets.token_hex(12) + '}')"
+   ```
+
+   Вставьте результат только в локальный `.env`; значение из шаблона не
+   оставляйте. Лаборатория откажется запускаться с пустым или несовместимым
+   флагом.
+5. Соберите и запустите платформу:
 
    ```text
    docker compose up -d --build
    ```
 
-5. Проверьте все контейнеры:
+6. Проверьте все контейнеры:
 
    ```text
    docker compose ps --all
@@ -39,7 +49,7 @@ Self-hosted CTF platform for cybersecurity training. Developed by 404клуб fo
 
    Дождитесь статуса `healthy` у `app`, `nginx`, `lab-gateway` и `lab-web`.
    Если контейнер завершился или нездоров, смотрите [диагностику](docs/infra.md).
-6. Откройте [http://localhost:8080](http://localhost:8080).
+7. Откройте [http://localhost:8080](http://localhost:8080).
    При первом входе администратора потребуется сменить начальный пароль.
 
 **Значения `REPLACE_WITH_YOUR_PASSWORD` и `REPLACE_WITH_RANDOM_SECRET` —
