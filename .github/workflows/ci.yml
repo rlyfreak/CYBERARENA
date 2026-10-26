@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Ruff lint
-        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+        run: python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
 
       - name: Pytest
         env:
@@ -89,7 +89,7 @@ jobs:
       - name: Test Python 3.12 under resource limits
         run: |
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python -m pytest backend/tests -q
-          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
+          docker run --rm cyberarena-ctf-tests:local python -m ruff check backend/app backend/tests scripts/ctf_smoke.py scripts/check_resource_integration.py scripts/check_static_files.py scripts/check_files_hardening.py scripts/check_lab_browser.py scripts/fixtures/lab_probe.py scripts/generate_crypto_01.py scripts/check_crypto_01_resource.py scripts/check_crypto_01_flow.py scripts/auth_load.py
           docker run --rm cyberarena-ctf-tests:local python -m pip check
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
@@ -114,6 +114,11 @@ jobs:
           WEB01_FLAG: ${{ env.CTF_CHECK_WEB01_FLAG }}
         run: docker compose --env-file /dev/null -f compose.yaml config --quiet
 
+      - name: Install browser isolation checker
+        run: |
+          python -m pip install -r scripts/requirements-browser.txt
+          python -m playwright install --with-deps chromium
+
       - name: Start isolated Compose stack
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --build --wait --wait-timeout 90
 
@@ -127,10 +132,13 @@ jobs:
         run: |
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check exec -T nginx nginx -t
           python scripts/check_static_files.py --base http://127.0.0.1:18080 --root scripts/fixtures/files
+          python scripts/check_files_hardening.py --base http://127.0.0.1:18080
           python scripts/check_resource_integration.py
           python scripts/ctf_smoke.py prepare
           python scripts/ctf_isolation.py
           python scripts/ctf_smoke.py upstream-errors
+          python scripts/ctf_smoke.py lab-isolation
+          python scripts/check_lab_browser.py
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check restart app
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check up -d --no-recreate --wait --wait-timeout 90
           python scripts/ctf_smoke.py verify
