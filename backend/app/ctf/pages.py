@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -86,8 +87,15 @@ def challenge_page(challenge_id: int, request: Request, user: Player, result: st
 def challenge_form(challenge_id: int, request: Request, user: Player,
                    flag: str = Form(''), csrf_token: str = Form('')):
     validate_csrf(request, csrf_token)
-    result = service.submit_flag(user.id, challenge_id, flag)
-    return RedirectResponse(f'/challenges/{challenge_id}?result={result.result}', 303)
+    for attempt in range(6):
+        try:
+            result = service.submit_flag(user.id, challenge_id, flag)
+            return RedirectResponse(f'/challenges/{challenge_id}?result={result.result}', 303)
+        except service.CtfError as error:
+            if error.status != 503 or error.retry_after is None or attempt == 5:
+                raise
+            sleep(error.retry_after)
+    raise AssertionError('unreachable')
 
 
 @router.get('/submissions')
