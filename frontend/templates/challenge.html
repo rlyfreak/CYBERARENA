@@ -3,12 +3,7 @@
 {% block content %}<h1>{{ task.code or '' }} — {{ task.title }}</h1><p>{{ task.category }} · {{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }} · {{ task.points }} баллов</p>
 <article class="description">{{ task.description }}</article>
 {% if task.resource_url %}
-{% set resource_path = task.resource_url.split('?')[0].split('#')[0] %}
-{% set resource_name = resource_path.rstrip('/').split('/')[-1] %}
-{% set resource_name_lower = resource_name|lower %}
-{% set resource_is_directory = resource_path.endswith('/') %}
-{% set resource_is_html = resource_name_lower.endswith(('.html', '.htm')) %}
-{% set downloadable = resource_name and not resource_is_directory and not resource_is_html %}
+{% set resource_name, downloadable = resource_link_info(task.resource_url) %}
 <section aria-labelledby="challenge-resources">
 <h2 id="challenge-resources">Материалы задания</h2>
 <p><a href="{{ task.resource_url }}" target="_blank" rel="noopener" {% if downloadable %}download{% endif %}>{% if downloadable %}Скачать файл: {{ resource_name }}{% else %}Открыть материалы задания{% endif %}</a></p>
