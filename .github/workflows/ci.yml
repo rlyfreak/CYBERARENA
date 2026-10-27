@@ -112,7 +112,12 @@ jobs:
           ADMIN_PASSWORD: ${{ env.CTF_CHECK_ADMIN_PASSWORD }}
           SESSION_SECRET: ${{ env.CTF_CHECK_SESSION_SECRET }}
           WEB01_FLAG: ${{ env.CTF_CHECK_WEB01_FLAG }}
-        run: docker compose --env-file /dev/null -f compose.yaml config --quiet
+        run: |
+          docker compose --env-file /dev/null -f compose.yaml config --quiet
+          docker compose --env-file /dev/null -f compose.yaml config --format json |
+            python -c 'import json, sys; c=json.load(sys.stdin); assert c["services"]["nginx"]["ports"][0]["host_ip"] == "127.0.0.1"'
+          NGINX_BIND=192.0.2.10 docker compose --env-file /dev/null -f compose.yaml config --format json |
+            python -c 'import json, sys; c=json.load(sys.stdin); s=c["services"]; assert s["nginx"]["ports"][0]["host_ip"] == "192.0.2.10"; assert not s["app"].get("ports"); assert not s["lab-web"].get("ports"); assert c["networks"]["lab-net"]["internal"]'
 
       - name: Install browser isolation checker
         run: |
