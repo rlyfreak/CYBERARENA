@@ -1,1 +1,21 @@
-{% extends 'base.html' %}{% block content %}<section class="hero"><div><p class="eyebrow">Образовательная CTF-платформа</p><h1>Учись находить.<br><span style="color:var(--accent-2)">уязвимости</span></h1><p class="lead">Решай учебные задачи, отправляй флаги и следи за своим прогрессом. Три задания — понятный старт в кибербезопасности.</p><p><a class="button" href="/challenges">Перейти к заданиям →</a></p></div><div class="hero-visual"><span class="dots">•••<br>•••</span><div class="code-tile">&lt;/&gt;</div></div></section><section class="feature-strip" aria-label="Возможности"><div class="feature"><b>01</b>Решай задачи</div><div class="feature"><b>02</b>Отправляй флаги</div><div class="feature"><b>03</b>Следи за прогрессом</div></section>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Образовательная CTF-платформа</p>
+    <h1>Учись находить.<br><span style="color:var(--accent-soft)">уязвимости</span></h1>
+    <p class="lead">Решай учебные задачи, отправляй флаги и следи за своим прогрессом. Понятный старт в кибербезопасности для школ, колледжей и вузов.</p>
+    <a class="button" href="/challenges">Перейти к заданиям <span aria-hidden="true">→</span></a>
+  </div>
+  <div class="hero-visual" aria-hidden="true">
+    <span class="hero-flag"></span>
+    <div class="hero-window"><div class="window-dots"><i></i><i></i><i></i></div><div class="window-code">&lt;/&gt;</div></div>
+    <div class="dot-grid">••••<br>••••<br>••••</div>
+  </div>
+</section>
+<section class="feature-strip" aria-label="Как работает платформа">
+  <div class="feature"><b>01</b><strong>Решай задачи</strong><br><span>Выбирай одно из трёх учебных заданий.</span></div>
+  <div class="feature"><b>02</b><strong>Отправляй флаги</strong><br><span>Проверяй найденный ответ в формате CTF{...}.</span></div>
+  <div class="feature"><b>03</b><strong>Следи за прогрессом</strong><br><span>Получай баллы и поднимайся в рейтинге.</span></div>
+</section>
+{% endblock %}

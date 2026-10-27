@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}История попыток | CYBERARENA{% endblock %}
-{% block content %}<h1>{% if admin %}Все попытки{% else %}Мои попытки{% endif %}</h1><p class="muted">Время указано в UTC. Отправленные флаги не сохраняются.</p>
-<div class="scroll"><table><thead><tr><th>Время UTC</th>{% if admin %}<th>Участник</th>{% endif %}<th>Задание</th><th>Результат</th></tr></thead><tbody>
-{% set labels = {'correct':'Верно', 'incorrect':'Неверно', 'already_solved':'Уже решено', 'invalid_format':'Неверный формат'} %}
-{% for attempt in attempts %}<tr><td>{{ attempt.submitted_at }}</td>{% if admin %}<td>{{ attempt.username }}</td>{% endif %}<td>{{ attempt.code or attempt.title }}</td><td>{{ labels.get(attempt.result, attempt.result) }}</td></tr>
-{% else %}<tr><td colspan="4">Попыток пока нет.</td></tr>{% endfor %}</tbody></table></div>
-{% set count = attempts|length %}{% include 'pagination.html' %}{% endblock %}
+{% block content %}
+<div class="section-head"><div><p class="eyebrow">Результаты</p><h1>{% if admin %}Все попытки{% else %}Мои попытки{% endif %}</h1><p class="lead">Время указано в UTC. Отправленные флаги не сохраняются.</p></div></div>
+<div class="scroll"><table><thead><tr><th>Время UTC</th>{% if admin %}<th>Участник</th>{% endif %}<th>Задание</th><th>Результат</th></tr></thead><tbody>{% set labels={'correct':'Верно','incorrect':'Неверно','already_solved':'Уже решено','invalid_format':'Неверный формат'} %}{% for attempt in attempts %}<tr><td class="muted">{{ attempt.submitted_at }}</td>{% if admin %}<td><strong>{{ attempt.username }}</strong></td>{% endif %}<td>{{ attempt.code or attempt.title }}</td><td><span class="tag {% if attempt.result == 'correct' %}ok{% elif attempt.result in ('incorrect','invalid_format') %}danger-tag{% else %}warn{% endif %}">{{ labels.get(attempt.result,attempt.result) }}</span></td></tr>{% else %}<tr><td colspan="4"><div class="empty-state">Попыток пока нет.</div></td></tr>{% endfor %}</tbody></table></div>
+{% set count = attempts|length %}{% include 'pagination.html' %}
+{% endblock %}

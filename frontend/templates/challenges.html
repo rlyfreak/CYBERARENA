@@ -1,5 +1,37 @@
 {% extends 'base.html' %}
 {% block title %}Задания | CYBERARENA{% endblock %}
-{% block content %}<div class="section-head"><div><p class="eyebrow">Каталог</p><h1>Задания</h1><p class="lead">Выбирай задачу, изучай уязвимости и оттачивай навыки.</p></div></div><form class="card" method="get"><label>Категория <input name="category" maxlength="50" value="{{ category }}" placeholder="Например, WEB"></label><button>Показать</button></form><section class="grid grid-3">{% for task in tasks %}<article class="challenge-card card-accent"><div><span class="tag">{{ task.category }}</span>{% if task.solved %}<span class="tag ok">✓ Решено</span>{% endif %}</div><h2>{{ task.code or '' }}<br>{{ task.title }}</h2><p class="muted">{{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }} · {{ task.points }} баллов{% if task.resource_url %} · Материалы{% endif %}</p><a class="button {% if task.solved %}secondary{% endif %}" href="/challenges/{{ task.id }}">{{ 'Посмотреть решение' if task.solved else 'Открыть задание' }}</a></article>{% else %}<p>Опубликованных заданий в этой категории пока нет.</p>{% endfor %}</section>
+{% block content %}
+{% set solved_count = tasks|selectattr('solved')|list|length %}
+{% set task_count = tasks|length %}
+{% set progress = (solved_count * 100 // task_count) if task_count else 0 %}
+<section class="catalog-top">
+  <div><p class="eyebrow">Каталог</p><h1>Задания</h1><p class="lead">Выбирай задания, изучай технологии и оттачивай навыки.</p></div>
+  <aside class="card progress-card" aria-label="Прогресс по заданиям"><small>Твой прогресс</small><strong>{{ solved_count }} из {{ task_count }} решено</strong><div class="progress-track"><div class="progress-bar" style="width:{{ progress }}%"></div></div></aside>
+</section>
+<nav class="filter-pills" aria-label="Фильтр заданий">
+  <a class="filter-pill {% if not category %}active{% endif %}" href="/challenges">Все</a>
+  <a class="filter-pill {% if category|upper == 'WEB' %}active{% endif %}" href="/challenges?category=WEB">Web</a>
+  <a class="filter-pill {% if category|upper == 'CRYPTO' %}active{% endif %}" href="/challenges?category=CRYPTO">Crypto</a>
+</nav>
+<section class="challenge-grid">
+{% for task in tasks %}
+  <article class="challenge-card {% if task.code == 'WEB-02' %}featured{% endif %}">
+    <div class="challenge-card-head"><span class="tag">{{ task.code or task.category }}</span>{% if task.solved %}<span class="tag ok">● Решено</span>{% else %}<span class="tag {% if task.difficulty == 'easy' %}ok{% else %}warn{% endif %}">{{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }}</span>{% endif %}</div>
+    <div class="challenge-art" aria-hidden="true">
+    {% if task.category|upper == 'CRYPTO' %}
+      <svg viewBox="0 0 120 100" fill="none"><rect x="18" y="14" width="67" height="74" rx="10" fill="var(--surface-3)" stroke="var(--accent)" stroke-width="4"/><path d="M32 36h38M32 50h31M32 64h24" stroke="var(--accent-soft)" stroke-width="5" stroke-linecap="round"/><circle cx="87" cy="68" r="24" fill="var(--warn)"/><path d="M80 70l16-16m-7 8 8 8m-21 4 7 7" stroke="#473513" stroke-width="5" stroke-linecap="round"/></svg>
+    {% elif task.code == 'WEB-01' %}
+      <svg viewBox="0 0 120 100" fill="none"><rect x="20" y="18" width="80" height="62" rx="9" fill="var(--surface-3)" stroke="var(--accent)" stroke-width="4"/><path d="M20 34h80" stroke="var(--accent)" stroke-width="4"/><circle cx="31" cy="26" r="3" fill="var(--ok)"/><path d="M48 63v-9a13 13 0 0 1 26 0v9" stroke="var(--ok)" stroke-width="7" stroke-linecap="round"/><rect x="43" y="59" width="36" height="28" rx="6" fill="var(--ok)"/><circle cx="61" cy="72" r="4" fill="#173629"/></svg>
+    {% else %}
+      <svg viewBox="0 0 120 100" fill="none"><rect x="12" y="15" width="88" height="66" rx="9" fill="var(--surface-3)" stroke="var(--accent)" stroke-width="4"/><path d="M12 31h88" stroke="var(--accent)" stroke-width="4"/><path d="m43 48-12 9 12 9m25-18 12 9-12 9m-7-23-9 29" stroke="var(--accent-soft)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="m91 60 16 27H75l16-27Z" fill="var(--danger)"/><path d="M91 68v8m0 5v1" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>
+    {% endif %}
+    </div>
+    <h2>{{ task.title }}</h2>
+    <p class="muted">Практическое задание категории {{ task.category }}{% if task.resource_url %} с учебными материалами{% endif %}.</p>
+    <p class="meta">{{ task.category }} · {{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }} <strong style="float:right;color:var(--text)">{{ task.points }} баллов</strong></p>
+    <a class="button {% if task.solved %}secondary{% endif %}" href="/challenges/{{ task.id }}">{{ 'Посмотреть решение' if task.solved else 'Открыть задание' }}</a>
+  </article>
+{% else %}<div class="empty-state">В этой категории пока нет опубликованных заданий.</div>{% endfor %}
+</section>
 {% set count = tasks|length %}{% include 'pagination.html' %}
 {% endblock %}
