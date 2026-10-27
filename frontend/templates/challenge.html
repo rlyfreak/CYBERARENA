@@ -1,7 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}{{ task.title }} | CYBERARENA{% endblock %}
-{% block content %}<h1>{{ task.code or '' }} — {{ task.title }}</h1><p>{{ task.category }} · {{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }} · {{ task.points }} баллов</p>
-<article class="description">{{ task.description }}</article>
+{% block content %}<p class="eyebrow">Задания · {{ task.category }}</p><h1>{{ task.code or '' }} — {{ task.title }}</h1><p><span class="tag">{{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }}</span> <span class="tag">{{ task.points }} баллов</span></p><div class="challenge-layout"><section><article class="description card-accent"><h2>Условие</h2>{{ task.description }}</article>
 {% if task.resource_url %}
 {% set resource_path = task.resource_url.split('?')[0].split('#')[0] %}
 {% set resource_name = resource_path.rstrip('/').split('/')[-1] %}
@@ -14,8 +13,6 @@
 <p><a href="{{ task.resource_url }}" target="_blank" rel="noopener" {% if downloadable %}download{% endif %}>{% if downloadable %}Скачать файл: {{ resource_name }}{% else %}Открыть материалы задания{% endif %}</a></p>
 </section>
 {% endif %}
-{% if message %}<p role="status" class="message">{{ message }}</p>{% endif %}
-{% if task.solved %}<p>✓ Задание решено. Баллы за него начисляются один раз.</p>{% else %}
-<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+{% if message %}<p role="status" class="message">{{ message }}</p>{% endif %}</section><aside class="card card-accent"><h2>Отправка флага</h2>{% if task.solved %}<p class="message">✓ Задание решено. Баллы за него начисляются один раз.</p>{% else %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <label>Флаг <input type="password" name="flag" required minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="off"></label><button>Проверить флаг</button></form>{% endif %}
-<p><a href="/challenges">← Каталог</a></p>{% endblock %}
+</aside></div><p><a href="/challenges">← Каталог</a></p>{% endblock %}

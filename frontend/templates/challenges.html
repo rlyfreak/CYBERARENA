@@ -1,10 +1,5 @@
 {% extends 'base.html' %}
 {% block title %}Задания | CYBERARENA{% endblock %}
-{% block content %}<h1>CTF-задания</h1>
-<form method="get"><label>Категория <input name="category" maxlength="50" value="{{ category }}" placeholder="Например, WEB"></label><button>Показать</button></form>
-{% for task in tasks %}<article><span class="tag">{{ task.category }} · {{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }} · {{ task.points }} баллов</span>
-<h2><a href="/challenges/{{ task.id }}">{{ task.code or '' }} — {{ task.title }}</a></h2>
-<p>{% if task.solved %}✓ Решено{% else %}Не решено{% endif %}{% if task.resource_url %} · Материалы доступны{% endif %}</p></article>
-{% else %}<p>Опубликованных заданий в этой категории пока нет.</p>{% endfor %}
+{% block content %}<div class="section-head"><div><p class="eyebrow">Каталог</p><h1>Задания</h1><p class="lead">Выбирай задачу, изучай уязвимости и оттачивай навыки.</p></div></div><form class="card" method="get"><label>Категория <input name="category" maxlength="50" value="{{ category }}" placeholder="Например, WEB"></label><button>Показать</button></form><section class="grid grid-3">{% for task in tasks %}<article class="challenge-card card-accent"><div><span class="tag">{{ task.category }}</span>{% if task.solved %}<span class="tag ok">✓ Решено</span>{% endif %}</div><h2>{{ task.code or '' }}<br>{{ task.title }}</h2><p class="muted">{{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }} · {{ task.points }} баллов{% if task.resource_url %} · Материалы{% endif %}</p><a class="button {% if task.solved %}secondary{% endif %}" href="/challenges/{{ task.id }}">{{ 'Посмотреть решение' if task.solved else 'Открыть задание' }}</a></article>{% else %}<p>Опубликованных заданий в этой категории пока нет.</p>{% endfor %}</section>
 {% set count = tasks|length %}{% include 'pagination.html' %}
 {% endblock %}

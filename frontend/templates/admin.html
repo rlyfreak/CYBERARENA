@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Управление | CYBERARENA{% endblock %}
-{% block content %}<h1>Управление CTF</h1><p><a href="/admin/challenges/new">Создать задание</a> · <a href="/admin/submissions">Все попытки</a> · <a href="/docs">API</a></p>
+{% block content %}<p class="eyebrow">Администрирование</p><div class="section-head"><div><h1>Панель управления</h1><p class="lead">Создавай, редактируй и публикуй задания соревнования.</p></div><a class="button" href="/admin/challenges/new">Создать задание</a></div><p><a href="/admin/submissions">Все попытки</a> · <a href="/docs">API</a></p>
 <form action="/admin/seed-case" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Добавить черновики заданий кейса</button></form>
 <p class="muted">WEB-01 — 100, WEB-02 — 150, CRYPTO-01 — 150 баллов. Черновики скрыты; добавьте условия, материалы и флаги перед публикацией.</p>
 <div class="scroll"><table><thead><tr><th>Код</th><th>Название</th><th>Баллы</th><th>Публикация</th></tr></thead><tbody>
