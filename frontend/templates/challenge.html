@@ -1,16 +1,24 @@
 {% extends 'base.html' %}
 {% block title %}{{ task.title }} | CYBERARENA{% endblock %}
-{% block content %}<h1>{{ task.code or '' }} — {{ task.title }}</h1><p>{{ task.category }} · {{ {'easy': 'Лёгкая', 'medium': 'Средняя', 'hard': 'Сложная'}[task.difficulty] }} · {{ task.points }} баллов</p>
-<article class="description">{{ task.description }}</article>
-{% if task.resource_url %}
-{% set resource_name, downloadable = resource_link_info(task.resource_url) %}
-<section aria-labelledby="challenge-resources">
-<h2 id="challenge-resources">Материалы задания</h2>
-<p><a href="{{ task.resource_url }}" target="_blank" rel="noopener" {% if downloadable %}download{% endif %}>{% if downloadable %}Скачать файл: {{ resource_name }}{% else %}Открыть материалы задания{% endif %}</a></p>
-</section>
-{% endif %}
-{% if message %}<p role="status" class="message">{{ message }}</p>{% endif %}
-{% if task.solved %}<p>✓ Задание решено. Баллы за него начисляются один раз.</p>{% else %}
-<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<label>Флаг <input type="password" name="flag" required minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="off"></label><button>Проверить флаг</button></form>{% endif %}
-<p><a href="/challenges">← Каталог</a></p>{% endblock %}
+{% block content %}
+<p class="eyebrow"><a href="/challenges">Задания</a> · {{ task.category }} · {{ task.code or task.id }}</p>
+<div class="section-head"><div><h1>{{ task.title }}</h1><p><span class="tag">{{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }}</span> <span class="tag">{{ task.points }} баллов</span>{% if task.solved %} <span class="tag ok">● Решено</span>{% endif %}</p></div></div>
+<div class="challenge-layout">
+  <div class="challenge-main">
+    <section class="card card-accent"><h2>Условие</h2><div class="description">{{ task.description }}</div></section>
+    {% if task.resource_url %}
+    {% set resource_name, downloadable = resource_link_info(task.resource_url) %}
+    <section class="card" aria-labelledby="challenge-resources"><h2 id="challenge-resources">Материалы</h2>
+      <div class="resource-row"><span class="resource-icon" aria-hidden="true">{% if downloadable %}↓{% else %}↗{% endif %}</span><div><strong>{% if downloadable %}Файл задания{% else %}Учебная страница{% endif %}</strong><br><small>{{ resource_name or task.resource_url }}</small></div><a class="button small" href="{{ task.resource_url }}" target="_blank" rel="noopener" {% if downloadable %}download{% endif %}>{% if downloadable %}Скачать файл: {{ resource_name }}{% else %}Открыть материалы задания{% endif %}</a></div>
+    </section>{% endif %}
+    <section class="card help-card"><span class="help-icon" aria-hidden="true">?</span><div><h3>Нужна помощь?</h3><p class="muted">Внимательно перечитай условие и проверь доступные материалы. Флаг вводится в формате CTF{...}.</p></div></section>
+  </div>
+  <aside class="challenge-aside">
+    <section class="card card-accent"><h2>Отправка флага</h2><p class="muted">Формат ответа: CTF{...}</p>
+    {% if message %}<p role="status" class="message {% if 'Невер' in message or 'формат' in message %}error{% endif %}">{{ message }}</p>{% endif %}
+    {% if task.solved %}<p class="message">Задание уже решено. Баллы начисляются один раз.</p>{% else %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label for="flag">Флаг</label><input id="flag" type="password" name="flag" required minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="off"><div class="form-actions"><button class="primary" type="submit">Проверить флаг</button></div></form>{% endif %}
+    </section>
+  </aside>
+</div>
+<p><a href="/challenges">← Вернуться в каталог</a></p>
+{% endblock %}

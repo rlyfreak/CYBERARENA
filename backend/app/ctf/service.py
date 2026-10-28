@@ -244,6 +244,41 @@ def catalog(user_id, offset=0, limit=50, category=None, include_hidden=False):
         return [challenge_data(task, done) for task, done in db.execute(query)]
 
 
+def catalog_progress(user_id):
+    with SessionLocal() as db:
+        published = Challenge.is_published.is_(True)
+        total = db.scalar(select(func.count(Challenge.id)).where(published)) or 0
+        solved = db.scalar(
+            select(func.count(Solve.id))
+            .join(Challenge, Challenge.id == Solve.challenge_id)
+            .where(Solve.user_id == user_id, published)
+        ) or 0
+        return {"solved": solved, "total": total}
+
+
+def catalog_categories():
+    with SessionLocal() as db:
+        return list(db.scalars(
+            select(Challenge.category)
+            .where(Challenge.is_published.is_(True))
+            .distinct()
+            .order_by(func.lower(Challenge.category), Challenge.category)
+        ))
+
+
+def admin_catalog_summary():
+    with SessionLocal() as db:
+        total, published_count = db.execute(select(
+            func.count(Challenge.id),
+            func.count(Challenge.id).filter(Challenge.is_published.is_(True)),
+        )).one()
+        return {
+            "total": total,
+            "published": published_count,
+            "hidden": total - published_count,
+        }
+
+
 def challenge_detail(user_id, challenge_id, include_hidden=False):
     with SessionLocal() as db:
         challenge = db.get(Challenge, challenge_id) if include_hidden else published(db, challenge_id)

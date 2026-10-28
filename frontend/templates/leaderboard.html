@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Рейтинг | CYBERARENA{% endblock %}
-{% block content %}<h1>Таблица лидеров</h1><p>При равных баллах выше участник, раньше завершивший последнее успешное решение. Время — UTC.</p>
+{% block content %}
+<div class="section-head"><div><p class="eyebrow">Соревнование</p><h1>Рейтинг участников</h1><p class="lead">Следи за прогрессом и поднимайся выше. При равных баллах учитывается время последнего результативного решения.</p></div></div>
 <div class="scroll"><table><thead><tr><th>Место</th><th>Участник</th><th>Баллы</th><th>Последнее решение UTC</th></tr></thead><tbody>
-{% for row in rows %}<tr><td>{{ row.rank }}</td><td>{{ row.username }}</td><td>{{ row.points }}</td><td>{{ row.last_solve_at or '—' }}</td></tr>{% else %}<tr><td colspan="4">Участников пока нет.</td></tr>{% endfor %}</tbody></table></div>
-{% set count = rows|length %}{% include 'pagination.html' %}{% endblock %}
+{% for row in rows %}<tr><td><span class="rank {% if row.rank <= 3 %}rank-{{ row.rank }}{% endif %}">{{ row.rank }}</span></td><td><strong>{{ row.username }}</strong></td><td><strong>{{ row.points }}</strong></td><td class="muted">{{ row.last_solve_at or '—' }}</td></tr>{% else %}<tr><td colspan="4"><div class="empty-state">Рейтинг появится после первых решений.</div></td></tr>{% endfor %}
+</tbody></table></div>
+{% set count = rows|length %}{% include 'pagination.html' %}
+{% endblock %}
