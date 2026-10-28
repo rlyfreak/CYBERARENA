@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 
 from app.auth import dependencies
 from app.auth import routes as auth_routes
-from app.ctf import cli, service
+from app.ctf import cli, pages, service
 from app.ctf.service import CtfError
 from app.models import AuthSession, Challenge, User
 from test_ctf_api import FLAG, admin_login
@@ -179,6 +179,46 @@ def test_participant_pages_and_form_flow(api):
     client.cookies.clear()
     assert client.get('/challenges').headers['location'] == '/login'
     assert client.get('/leaderboard').status_code == 200
+
+
+def test_catalog_progress_is_global_when_category_is_filtered(api):
+    client, factory = api
+    with factory.begin() as db:
+        db.add(Challenge(
+            id=2, code='CRYPTO-01', title='CRYPTO-01', description='Task',
+            category='CRYPTO', difficulty='medium', points=150,
+            flag_hash='unused', is_published=True,
+        ))
+
+    filtered = client.get('/challenges?category=CRYPTO')
+    assert filtered.status_code == 200
+    assert '0 из 2 решено' in filtered.text
+    assert 'CRYPTO-01' in filtered.text and 'WEB-01' not in filtered.text
+
+    service.submit_flag(1, 1, FLAG)
+    filtered = client.get('/challenges?category=CRYPTO')
+    assert '1 из 2 решено' in filtered.text
+
+
+def test_participant_form_retries_transient_flag_capacity(api, monkeypatch):
+    client, _ = api
+    original = service.submit_flag
+    calls = 0
+
+    def temporarily_busy(*args):
+        nonlocal calls
+        calls += 1
+        if calls <= 2:
+            raise CtfError(503, 'Flag verification busy; retry later', retry_after=1)
+        return original(*args)
+
+    monkeypatch.setattr(service, 'submit_flag', temporarily_busy)
+    monkeypatch.setattr(pages, 'sleep', lambda _: None)
+    csrf = token(client.get('/challenges/1'))
+    response = client.post('/challenges/1', data={'flag': FLAG, 'csrf_token': csrf})
+    assert response.status_code == 303
+    assert calls == 3
+    assert 'Баллы начислены' in client.get(response.headers['location']).text
 
 
 def test_admin_browser_create_edit_hide_and_escape(api):

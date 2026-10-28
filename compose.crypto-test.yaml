@@ -1,0 +1,11 @@
+# Test-only override: replace the fixture mount with the real public materials.
+# Compose merges volumes by container target; no write-up/source tree is exposed.
+services:
+  nginx:
+    volumes:
+      - type: bind
+        source: ./files
+        target: /usr/share/nginx/files
+        read_only: true
+        bind:
+          create_host_path: false

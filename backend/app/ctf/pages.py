@@ -1,3 +1,4 @@
+from time import sleep
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -69,8 +70,10 @@ async def challenge_form_data(request: Request) -> dict[str, str | int | bool]:
 @router.get('/challenges')
 def catalog_page(request: Request, user: Player, offset: Offset = 0,
                  limit: Limit = 50, category: str | None = None):
+    progress = service.catalog_progress(user.id)
     return render(request, 'challenges.html', user, tasks=service.catalog(user.id, offset, limit, category or None),
-                  offset=offset, limit=limit, category=category or '')
+                  offset=offset, limit=limit, category=category or '',
+                  solved_count=progress['solved'], task_count=progress['total'])
 
 
 @router.get('/challenges/{challenge_id}')
@@ -86,8 +89,15 @@ def challenge_page(challenge_id: int, request: Request, user: Player, result: st
 def challenge_form(challenge_id: int, request: Request, user: Player,
                    flag: str = Form(''), csrf_token: str = Form('')):
     validate_csrf(request, csrf_token)
-    result = service.submit_flag(user.id, challenge_id, flag)
-    return RedirectResponse(f'/challenges/{challenge_id}?result={result.result}', 303)
+    for attempt in range(6):
+        try:
+            result = service.submit_flag(user.id, challenge_id, flag)
+            return RedirectResponse(f'/challenges/{challenge_id}?result={result.result}', 303)
+        except service.CtfError as error:
+            if error.status != 503 or error.retry_after is None or attempt == 5:
+                raise
+            sleep(error.retry_after)
+    raise AssertionError('unreachable')
 
 
 @router.get('/submissions')

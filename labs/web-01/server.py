@@ -3,6 +3,16 @@ from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+def valid_flag(flag):
+    return (
+        isinstance(flag, str)
+        and 6 <= len(flag) <= 256
+        and flag.startswith("CTF{")
+        and flag.endswith("}")
+        and all(33 <= ord(char) <= 126 and char not in "{}" for char in flag[4:-1])
+    )
+
+
 DOCUMENTS = {
     "101": {
         "title": "Правила работы с архивом",
@@ -163,4 +173,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    if not valid_flag(os.environ.get("WEB01_FLAG")):
+        raise SystemExit("WEB01_FLAG must have format CTF{...}, 6-256 printable ASCII characters")
     ThreadingHTTPServer(("0.0.0.0", 8000), Handler).serve_forever()

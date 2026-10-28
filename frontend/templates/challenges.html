@@ -1,12 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Задания | CYBERARENA{% endblock %}
 {% block content %}
-{% set solved_count = tasks|selectattr('solved')|list|length %}
-{% set task_count = tasks|length %}
 {% set progress = (solved_count * 100 // task_count) if task_count else 0 %}
 <section class="catalog-top">
   <div><p class="eyebrow">Каталог</p><h1>Задания</h1><p class="lead">Выбирай задания, изучай технологии и оттачивай навыки.</p></div>
-  <aside class="card progress-card" aria-label="Прогресс по заданиям"><small>Твой прогресс</small><strong>{{ solved_count }} из {{ task_count }} решено</strong><div class="progress-track"><div class="progress-bar" style="width:{{ progress }}%"></div></div></aside>
+  <aside class="card progress-card" aria-label="Прогресс по заданиям"><small>Твой прогресс</small><strong>{{ solved_count }} из {{ task_count }} решено</strong><div class="progress-track"><div class="progress-bar" style="--progress:{{ progress }}%"></div></div></aside>
 </section>
 <nav class="filter-pills" aria-label="Фильтр заданий">
   <a class="filter-pill {% if not category %}active{% endif %}" href="/challenges">Все</a>
@@ -28,8 +26,8 @@
     </div>
     <h2>{{ task.title }}</h2>
     <p class="muted">Практическое задание категории {{ task.category }}{% if task.resource_url %} с учебными материалами{% endif %}.</p>
-    <p class="meta">{{ task.category }} · {{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }} <strong style="float:right;color:var(--text)">{{ task.points }} баллов</strong></p>
-    <a class="button {% if task.solved %}secondary{% endif %}" href="/challenges/{{ task.id }}">{{ 'Посмотреть решение' if task.solved else 'Открыть задание' }}</a>
+    <p class="meta challenge-meta"><span>{{ task.category }} · {{ {'easy':'Лёгкая','medium':'Средняя','hard':'Сложная'}[task.difficulty] }}</span><strong>{{ task.points }} баллов</strong></p>
+    <a class="button {% if task.solved %}secondary{% endif %}" href="/challenges/{{ task.id }}">Открыть задание</a>
   </article>
 {% else %}<div class="empty-state">В этой категории пока нет опубликованных заданий.</div>{% endfor %}
 </section>

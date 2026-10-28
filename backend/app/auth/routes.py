@@ -4,7 +4,7 @@ import secrets
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from ..database import SessionLocal
@@ -16,7 +16,8 @@ from .login_throttle import (
     record_failure,
     reset_failures,
 )
-from .security import hash_password, verify_password
+from .public_throttle import public_auth_budget
+from .security import PasswordCapacityError, hash_password, verify_password
 from .session_store import (
     get_session_user,
     issue_session,
@@ -28,6 +29,13 @@ router = APIRouter(tags=["Authentication"])
 # Используется для проверки времени ответа
 # даже при вводе несуществующего логина
 _DUMMY_HASH = hash_password("dummy-password-for-unknown-user")
+
+_BUSY_MESSAGE = "Сервис временно перегружен. Повторите попытку позже."
+
+
+def _retry_response(response, seconds: int):
+    response.headers["Retry-After"] = str(seconds)
+    return response
 
 
 def render_login(
@@ -141,6 +149,13 @@ def register_user(
             status_code=400,
         )
 
+    retry_after = public_auth_budget.retry_after()
+    if retry_after:
+        return _retry_response(render_register(
+            request, error="Слишком много запросов. Попробуйте позже.",
+            status_code=429,
+        ), retry_after)
+
     with SessionLocal() as db:
         existing = db.scalar(select(User.id).where(User.username == username))
 
@@ -152,9 +167,15 @@ def register_user(
                 status_code=409,
             )
 
+        try:
+            password_digest = hash_password(password)
+        except PasswordCapacityError:
+            return _retry_response(render_register(
+                request, error=_BUSY_MESSAGE, status_code=503,
+            ), 1)
         user = User(
             username=username,
-            password_hash=hash_password(password),
+            password_hash=password_digest,
             is_admin=False,
             must_change_password=False,
         )
@@ -203,6 +224,13 @@ def login_user(
             status_code=401,
         )
 
+    retry_after = public_auth_budget.retry_after()
+    if retry_after:
+        return _retry_response(render_login(
+            request, error="Слишком много запросов. Попробуйте позже.",
+            status_code=429,
+        ), retry_after)
+
     retry_after = blocked_for(username)
 
     if retry_after > 0:
@@ -213,7 +241,12 @@ def login_user(
 
         stored_hash = user.password_hash if user is not None else _DUMMY_HASH
 
-        password_valid = verify_password(password, stored_hash)
+        try:
+            password_valid = verify_password(password, stored_hash)
+        except PasswordCapacityError:
+            return _retry_response(render_login(
+                request, error=_BUSY_MESSAGE, status_code=503,
+            ), 1)
 
         if user is None or not password_valid:
             retry_after = record_failure(username)
@@ -365,7 +398,14 @@ def change_password(
             request.session.clear()
             return RedirectResponse("/login", status_code=303)
 
-        if not verify_password(current_password, user.password_hash):
+        previous_digest = user.password_hash
+        try:
+            current_valid = verify_password(current_password, previous_digest)
+        except PasswordCapacityError:
+            return _retry_response(render_password_change(
+                request, _BUSY_MESSAGE, 503,
+            ), 1)
+        if not current_valid:
             return render_password_change(request, "Неверный текущий пароль", 400)
 
         if new_password == current_password:
@@ -373,8 +413,22 @@ def change_password(
                 request, "Новый пароль должен отличаться", 400
             )
 
-        user.password_hash = hash_password(new_password)
-        user.must_change_password = False
+        try:
+            new_digest = hash_password(new_password)
+        except PasswordCapacityError:
+            return _retry_response(render_password_change(
+                request, _BUSY_MESSAGE, 503,
+            ), 1)
+        result = db.execute(
+            update(User)
+            .where(User.id == user.id, User.password_hash == previous_digest)
+            .values(password_hash=new_digest, must_change_password=False)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:
+            return render_password_change(
+                request, "Пароль уже изменён. Войдите заново.", 409,
+            )
 
         issue_session(
             request,
