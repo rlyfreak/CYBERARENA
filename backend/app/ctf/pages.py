@@ -82,7 +82,8 @@ def challenge_page(challenge_id: int, request: Request, user: Player, result: st
                 'already_solved': 'Задание уже решено. Повторных баллов нет.',
                 'invalid_format': 'Формат флага: CTF{...}, до 256 печатных ASCII-символов.'}
     return render(request, 'challenge.html', user,
-                  task=service.challenge_detail(user.id, challenge_id), message=messages.get(result, ''))
+                  task=service.challenge_detail(user.id, challenge_id),
+                  message=messages.get(result, ''), result=result if result in messages else '')
 
 
 @router.post('/challenges/{challenge_id}')
