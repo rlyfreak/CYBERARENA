@@ -72,7 +72,7 @@ def catalog_page(request: Request, user: Player, offset: Offset = 0,
                  limit: Limit = 50, category: str | None = None):
     progress = service.catalog_progress(user.id)
     return render(request, 'challenges.html', user, tasks=service.catalog(user.id, offset, limit, category or None),
-                  offset=offset, limit=limit, category=category or '',
+                  offset=offset, limit=limit, category=category or '', categories=service.catalog_categories(),
                   solved_count=progress['solved'], task_count=progress['total'])
 
 
@@ -116,7 +116,8 @@ def leaderboard_page(request: Request, user: OptionalUser, offset: Offset = 0, l
 def admin_page(request: Request, user: PageAdmin, offset: Offset = 0, limit: Limit = 50):
     return render(request, 'admin.html', user,
                   tasks=service.catalog(user.id, offset, limit, include_hidden=True),
-                  state=service.results_state(), offset=offset, limit=limit)
+                  summary=service.admin_catalog_summary(), state=service.results_state(),
+                  offset=offset, limit=limit)
 
 
 @router.get('/admin/challenges/new')

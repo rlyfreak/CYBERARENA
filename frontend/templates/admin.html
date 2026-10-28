@@ -1,9 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}Управление | CYBERARENA{% endblock %}
 {% block content %}
-{% set published_count = tasks|selectattr('is_published')|list|length %}
 <div class="section-head"><div><p class="eyebrow">Администрирование</p><h1>Панель управления</h1><p class="lead">Создавай, редактируй и публикуй задания учебного турнира.</p></div><a class="button" href="/admin/challenges/new">+ Создать задание</a></div>
-<section class="admin-stats"><div class="admin-stat"><strong>{{ tasks|length }}</strong><span>всего заданий</span></div><div class="admin-stat"><strong>{{ published_count }}</strong><span>опубликовано</span></div><div class="admin-stat"><strong>{{ tasks|length - published_count }}</strong><span>скрыто</span></div></section>
+<section class="admin-stats"><div class="admin-stat"><strong>{{ summary.total }}</strong><span>всего заданий</span></div><div class="admin-stat"><strong>{{ summary.published }}</strong><span>опубликовано</span></div><div class="admin-stat"><strong>{{ summary.hidden }}</strong><span>скрыто</span></div></section>
 <div class="section-head section-spaced"><div><h2>Задания</h2><p class="muted">WEB-01 — 100, WEB-02 — 150, CRYPTO-01 — 150 баллов.</p></div><div><a class="button secondary small" href="/admin/submissions">Все попытки</a> <a class="button secondary small" href="/docs">API</a></div></div>
 <div class="scroll"><table><thead><tr><th>Код</th><th>Название</th><th>Баллы</th><th>Статус</th><th></th></tr></thead><tbody>{% for task in tasks %}<tr><td><strong>{{ task.code or '—' }}</strong></td><td>{{ task.title }}</td><td>{{ task.points }}</td><td><span class="tag {{ 'ok' if task.is_published else 'warn' }}">{{ 'Опубликовано' if task.is_published else 'Скрыто' }}</span></td><td><a class="button secondary small" href="/admin/challenges/{{ task.id }}">Редактировать</a></td></tr>{% else %}<tr><td colspan="5"><div class="empty-state">Заданий пока нет.</div></td></tr>{% endfor %}</tbody></table></div>
 {% set count = tasks|length %}{% include 'pagination.html' %}

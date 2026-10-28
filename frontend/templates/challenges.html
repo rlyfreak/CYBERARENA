@@ -8,8 +8,7 @@
 </section>
 <nav class="filter-pills" aria-label="Фильтр заданий">
   <a class="filter-pill {% if not category %}active{% endif %}" href="/challenges">Все</a>
-  <a class="filter-pill {% if category|upper == 'WEB' %}active{% endif %}" href="/challenges?category=WEB">Web</a>
-  <a class="filter-pill {% if category|upper == 'CRYPTO' %}active{% endif %}" href="/challenges?category=CRYPTO">Crypto</a>
+  {% for item in categories %}<a class="filter-pill {% if category == item %}active{% endif %}" href="/challenges?category={{ item|urlencode }}">{{ item }}</a>{% endfor %}
 </nav>
 <section class="challenge-grid">
 {% for task in tasks %}

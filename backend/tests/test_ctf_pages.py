@@ -200,6 +200,56 @@ def test_catalog_progress_is_global_when_category_is_filtered(api):
     assert '1 из 2 решено' in filtered.text
 
 
+def test_catalog_filters_include_arbitrary_published_categories(api):
+    client, factory = api
+    with factory.begin() as db:
+        db.add_all([
+            Challenge(
+                id=2, code='FORENSICS-01', title='FORENSICS-01', description='Task',
+                category='FORENSICS', difficulty='medium', points=200,
+                flag_hash='unused', is_published=True,
+            ),
+            Challenge(
+                id=3, code='HIDDEN-01', title='HIDDEN-01', description='Task',
+                category='HIDDEN', difficulty='medium', points=200,
+                flag_hash='unused', is_published=False,
+            ),
+        ])
+
+    page = client.get('/challenges')
+    assert 'href="/challenges?category=FORENSICS"' in page.text
+    assert '>FORENSICS</a>' in page.text
+    assert 'category=HIDDEN' not in page.text
+
+    filtered = client.get('/challenges?category=FORENSICS')
+    assert filtered.status_code == 200
+    assert 'FORENSICS-01' in filtered.text and 'WEB-01' not in filtered.text
+    assert 'filter-pill active" href="/challenges?category=FORENSICS"' in filtered.text
+
+
+def test_admin_summary_is_global_across_pages_and_limits(api):
+    client, factory = api
+    with factory.begin() as db:
+        db.add_all([
+            Challenge(
+                id=2, code='WEB-02', title='Published', description='Task', category='WEB',
+                difficulty='medium', points=150, flag_hash='unused', is_published=True,
+            ),
+            Challenge(
+                id=3, code='CRYPTO-01', title='Hidden', description='Task', category='CRYPTO',
+                difficulty='medium', points=150, flag_hash='unused', is_published=False,
+            ),
+        ])
+    admin_login(client, factory)
+
+    for path in ['/admin?limit=1', '/admin?offset=1&limit=1', '/admin?offset=2&limit=2']:
+        page = client.get(path)
+        assert page.status_code == 200
+        assert '<strong>3</strong><span>всего заданий</span>' in page.text
+        assert '<strong>2</strong><span>опубликовано</span>' in page.text
+        assert '<strong>1</strong><span>скрыто</span>' in page.text
+
+
 def test_participant_form_retries_transient_flag_capacity(api, monkeypatch):
     client, _ = api
     original = service.submit_flag
