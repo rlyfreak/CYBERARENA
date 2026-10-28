@@ -181,6 +181,19 @@ def test_participant_pages_and_form_flow(api):
     assert client.get('/leaderboard').status_code == 200
 
 
+@pytest.mark.parametrize('result,message', [
+    ('incorrect', 'Неверный флаг.'),
+    ('invalid_format', 'Формат флага: CTF{...}'),
+])
+def test_flag_errors_use_error_visual_state(api, result, message):
+    client, _ = api
+    page = client.get(f'/challenges/1?result={result}')
+
+    assert page.status_code == 200
+    assert 'class="message error"' in page.text
+    assert message in page.text
+
+
 def test_catalog_progress_is_global_when_category_is_filtered(api):
     client, factory = api
     with factory.begin() as db:

@@ -15,7 +15,7 @@
   </div>
   <aside class="challenge-aside">
     <section class="card card-accent"><h2>Отправка флага</h2><p class="muted">Формат ответа: CTF{...}</p>
-    {% if message %}<p role="status" class="message {% if 'Невер' in message or 'формат' in message %}error{% endif %}">{{ message }}</p>{% endif %}
+    {% if message %}<p role="status" class="message {% if result in ('incorrect', 'invalid_format') %}error{% endif %}">{{ message }}</p>{% endif %}
     {% if task.solved %}<p class="message">Задание уже решено. Баллы начисляются один раз.</p>{% else %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label for="flag">Флаг</label><input id="flag" type="password" name="flag" required minlength="6" maxlength="256" placeholder="CTF{...}" autocomplete="off"><div class="form-actions"><button class="primary" type="submit">Проверить флаг</button></div></form>{% endif %}
     </section>
   </aside>
