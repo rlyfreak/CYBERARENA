@@ -3,6 +3,10 @@
 Платформа запускается через Docker Compose на [http://localhost:8080](http://localhost:8080).
 Все команды выполняются из корня репозитория. На Windows нужны Git, Docker
 с Compose и PowerShell; отдельный Python для запуска не требуется.
+Перед клонированием обязательно установите
+[Git for Windows](https://git-scm.com/install/windows), откройте новое окно
+PowerShell и проверьте `git --version`. Если команда не найдена, проверьте
+добавление Git в PATH при установке.
 
 ## 1. Первый запуск
 
