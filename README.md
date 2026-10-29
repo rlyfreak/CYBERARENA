@@ -6,9 +6,11 @@
 ## Первый запуск
 
 Нужны Git с доступом к этому репозиторию, Docker с Compose, работающий
-Docker Engine, свободный порт 8080 и Python 3 для генерации секретов и решения
-CRYPTO-01. На Windows запустите Docker Desktop; команды ниже выполняются в
-PowerShell. Пока есть интернет, получите репозиторий и перейдите в его корень:
+Docker Engine и свободный порт 8080. Отдельный Python на Windows не нужен:
+секреты создаются средствами PowerShell, а решение CRYPTO-01 приведено
+на PowerShell и Python. На Windows запустите Docker Desktop; команды ниже
+выполняются в PowerShell. Пока есть интернет, получите репозиторий и
+перейдите в его корень:
 
 ```powershell
 git clone https://github.com/rlyfreak/CYBERARENA.git
@@ -17,38 +19,45 @@ docker compose version
 docker info
 ```
 
-Если `docker info` не отвечает, запустите Docker Desktop. Если `python`
-на Windows не найден, попробуйте `py -3`.
+Если `docker info` не отвечает, запустите Docker Desktop.
 
 1. Скопируйте `.env.example` в `.env`:
 
-   ```text
-   cp .env.example .env
+   ```powershell
+   Copy-Item .env.example .env
    ```
 
-   В PowerShell используйте `Copy-Item .env.example .env`. Это действие нужно
-   только при первом запуске: существующий `.env` не перезаписывайте.
+   Это действие нужно только при первом запуске: существующий `.env`
+   не перезаписывайте.
 
 2. Откройте `.env` в локальном редакторе и замените `ADMIN_PASSWORD` собственным
-   паролем длиной **12–128 символов**. `ADMIN_USERNAME=admin` можно оставить.
+   паролем длиной **12–128 символов**. На Windows выполните `notepad .env`.
+   `ADMIN_USERNAME=admin` можно оставить.
 3. Сгенерируйте случайный `SESSION_SECRET` и вставьте его в `.env`:
 
-   ```text
-   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```powershell
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $bytes = New-Object byte[] 48
+   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+   [Convert]::ToBase64String($bytes)
    ```
 
-   Секрет должен содержать **минимум 32 символа**. Результат команды — секрет:
+   Скопируйте **только выведенную строку** после `SESSION_SECRET=`.
+   Она содержит 64 символа; требуется минимум 32. Результат команды — секрет:
    не публикуйте его и не отправляйте в логи CI, отчёты или переписку.
 4. Задайте в `.env` `WEB01_FLAG` в формате `CTF{...}` с собственным
    случайным токеном. Для генерации подойдёт:
 
-   ```text
-   python -c "import secrets; print('CTF{' + secrets.token_hex(12) + '}')"
+   ```powershell
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $bytes = New-Object byte[] 12
+   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+   'CTF{' + (($bytes | ForEach-Object { $_.ToString('x2') }) -join '') + '}'
    ```
 
-   Вставьте результат только в локальный `.env`; значение из шаблона не
-   оставляйте. Лаборатория откажется запускаться с пустым или несовместимым
-   флагом.
+   Скопируйте выведенный флаг после `WEB01_FLAG=` только в локальный `.env`.
+   Не оставляйте пустое значение из шаблона: лаборатория откажется запускаться
+   с пустым или несовместимым флагом.
 5. Соберите и запустите платформу:
 
    ```text
