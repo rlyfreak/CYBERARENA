@@ -25,7 +25,8 @@
 в его заголовке — безопасный marker для `CRYPTO01_EXPECTED_MARKER`; она не
 содержит ответ.
 
-Для пересоздания задания на Windows из корня репозитория:
+Только для переиздания задания при установленном Python 3.12 из корня
+репозитория:
 
 ```powershell
 py -3.12 scripts/generate_crypto_01.py --output files/crypto-01/challenge.txt --replace

@@ -1,26 +1,29 @@
 # Инфраструктура CYBERARENA
 
 Платформа запускается через Docker Compose на [http://localhost:8080](http://localhost:8080).
-Все команды выполняются из корня репозитория. Нужны Docker с Compose и Python
-для генерации секрета.
+Все команды выполняются из корня репозитория. На Windows нужны Git, Docker
+с Compose и PowerShell; отдельный Python для запуска не требуется.
 
 ## 1. Первый запуск
 
 1. Скопируйте `.env.example` в `.env`:
 
-   ```text
-   cp .env.example .env
+   ```powershell
+   Copy-Item .env.example .env
    ```
 
-   В PowerShell: `Copy-Item .env.example .env`. Копирование нужно только для
-   новой установки. Не перезаписывайте существующий `.env` при обновлении.
+   Копирование нужно только для новой установки. Не перезаписывайте
+   существующий `.env` при обновлении.
 
 2. Откройте `.env` в локальном редакторе. Установите `ADMIN_PASSWORD` длиной
    **12–128 символов**. Значение `ADMIN_USERNAME=admin` можно оставить.
-3. Сгенерируйте случайный ключ подписи сессий:
+3. Сгенерируйте случайный ключ подписи сессий в PowerShell:
 
-   ```text
-   python -c "import secrets; print(secrets.token_urlsafe(48))"
+   ```powershell
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $bytes = New-Object byte[] 48
+   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+   [Convert]::ToBase64String($bytes)
    ```
 
    Вставьте результат в `SESSION_SECRET` в `.env`; требуется **минимум 32 символа**.
@@ -29,8 +32,11 @@
    за установку. Для резервной копии секретов используйте защищённое хранилище.
 4. Сгенерируйте `WEB01_FLAG` в формате `CTF{...}` и внесите его в `.env`:
 
-   ```text
-   python -c "import secrets; print('CTF{' + secrets.token_hex(12) + '}')"
+   ```powershell
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $bytes = New-Object byte[] 12
+   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+   'CTF{' + (($bytes | ForEach-Object { $_.ToString('x2') }) -join '') + '}'
    ```
 
    Этот же флаг затем введите в закрытое поле карточки WEB-01 в `/admin`.

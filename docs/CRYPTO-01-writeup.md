@@ -15,8 +15,8 @@
 Условие сообщает три факта: использован XOR с повторяющимся ключом,
 длина ключа равна семи байтам, а исходный текст начинается **точно** с
 `CYBERARENA INCIDENT REPORT` и одного байта перевода строки (`\n`).
-Других инструментов, кроме стандартного Python, не требуется. Перебор ключей
-не нужен.
+На Windows достаточно штатного PowerShell; ниже также есть вариант на Python.
+Перебор ключей не нужен.
 
 ## Как работает шифрование
 
@@ -40,7 +40,7 @@
 6. Проверьте заголовок, строку `Ticket: CRYPTO-01` и возьмите значение
    `Access token:`. Оно имеет формат `CTF{...}`.
 
-Пример решения, запускаемый из корня репозитория:
+Необязательный вариант на Python, запускаемый из корня репозитория:
 
 ```python
 from pathlib import Path
@@ -58,6 +58,38 @@ assert "Ticket: CRYPTO-01\n" in decoded
 flag = decoded.split("Access token: ", 1)[1].split("\n", 1)[0]
 assert flag.startswith("CTF{") and flag.endswith("}")
 print(flag)
+```
+
+Вариант для PowerShell, запускаемый из корня репозитория без установки Python:
+
+```powershell
+$material = Get-Content -Raw -Encoding UTF8 'files/crypto-01/challenge.txt'
+$parts = $material -split 'Ciphertext \(hex\):', 2
+if ($parts.Count -ne 2) { throw 'Ciphertext marker missing' }
+$hex = $parts[1] -replace '\s', ''
+if ($hex.Length % 2 -ne 0) { throw 'Odd hex length' }
+[byte[]]$cipher = for ($i = 0; $i -lt $hex.Length; $i += 2) {
+    [Convert]::ToByte($hex.Substring($i, 2), 16)
+}
+[byte[]]$known = [Text.Encoding]::UTF8.GetBytes(
+    'CYBERARENA INCIDENT REPORT' + [char]10
+)
+[byte[]]$key = for ($i = 0; $i -lt 7; $i++) {
+    $cipher[$i] -bxor $known[$i]
+}
+[byte[]]$plain = New-Object byte[] $cipher.Length
+for ($i = 0; $i -lt $cipher.Length; $i++) {
+    $plain[$i] = $cipher[$i] -bxor $key[$i % 7]
+}
+$decoded = [Text.Encoding]::UTF8.GetString($plain)
+if (-not $decoded.StartsWith('CYBERARENA INCIDENT REPORT' + [char]10)) {
+    throw 'Wrong plaintext prefix'
+}
+if (-not $decoded.Contains('Ticket: CRYPTO-01')) { throw 'Wrong ticket' }
+if ($decoded -notmatch '(?m)^Access token: (CTF\{[^}\r\n]+\})$') {
+    throw 'Flag line missing'
+}
+$Matches[1]
 ```
 
 Полученное значение является правильным ответом. Его не следует добавлять
@@ -83,7 +115,7 @@ CTF Core хранит Argon2id-хеш флага. Пробный участни�
 
 ## Типичные ошибки
 
-- Применять XOR к символам hex, а не к байтам после `bytes.fromhex`.
+- Применять XOR к символам hex, а не к байтам после преобразования hex.
 - Взять семь символов строки hex вместо семи байтов шифртекста.
 - Забыть, что `\n` — один байт `0A` в известном префиксе.
 - Не повторять ключ, а использовать его только для первых семи байтов.
