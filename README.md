@@ -9,10 +9,20 @@
 Docker Engine и свободный порт 8080. Отдельный Python на Windows не нужен:
 секреты создаются средствами PowerShell, а решение CRYPTO-01 приведено
 на PowerShell и Python. На Windows запустите Docker Desktop; команды ниже
-выполняются в PowerShell. Пока есть интернет, получите репозиторий и
-перейдите в его корень:
+выполняются в PowerShell.
+
+**До клонирования обязательно установите Git for Windows** с
+[официальной страницы установки](https://git-scm.com/install/windows).
+При установке разрешите запуск Git из командной строки. Затем полностью
+закройте PowerShell и откройте новое окно. Команда `git --version` должна
+вывести версию Git. Если вместо этого имя `git` не распознано, вернитесь
+к установке и проверьте, что Git добавлен в PATH; к клонированию пока
+не переходите.
+
+Пока есть интернет, получите репозиторий и перейдите в его корень:
 
 ```powershell
+git --version
 git clone https://github.com/rlyfreak/CYBERARENA.git
 Set-Location CYBERARENA
 docker compose version
