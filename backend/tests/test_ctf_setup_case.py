@@ -33,6 +33,14 @@ def rows(factory):
         return {row.code: row for row in db.scalars(select(Challenge))}
 
 
+def snapshot(factory):
+    return {code: (card.flag_hash, card.revision, card.is_published) for code, card in rows(factory).items()}
+
+
+def assert_no_flags(text):
+    assert "CTF{" not in text.replace("CTF{...}", "")
+
+
 def test_configures_and_publishes_all_three_cards(setup_env):
     assert run() == 0
     cards = rows(setup_env)
@@ -48,38 +56,50 @@ def test_configures_and_publishes_all_three_cards(setup_env):
     assert [cards[code].points for code in FLAGS] == [100, 150, 150]
 
 
-def test_second_run_changes_nothing(setup_env, capsys):
+def test_second_run_keeps_data_and_succeeds(setup_env, capsys):
     assert run() == 0
-    before = {code: (card.flag_hash, card.revision) for code, card in rows(setup_env).items()}
+    before = snapshot(setup_env)
     capsys.readouterr()
     assert run() == 0
-    after = {code: (card.flag_hash, card.revision) for code, card in rows(setup_env).items()}
-    assert after == before
-    out = capsys.readouterr().out
-    assert out.count("уже настроено") == 3 and "ВНИМАНИЕ" not in out
+    assert snapshot(setup_env) == before
+    captured = capsys.readouterr()
+    assert captured.out.count("уже настроено") == 3
+    assert captured.err == ""
 
 
-def test_published_card_with_another_flag_is_reported_not_changed(setup_env, capsys):
+def test_flag_mismatch_fails_without_changing_cards(setup_env, capsys):
     assert run() == 0
-    before = {code: (card.flag_hash, card.revision) for code, card in rows(setup_env).items()}
+    before = snapshot(setup_env)
     capsys.readouterr()
-    assert run({**FLAGS, "WEB-01": "CTF{flag_from_a_new_env_file}"}) == 0
-    out = capsys.readouterr().out
-    assert "WEB-01: ВНИМАНИЕ" in out and "WEB01_FLAG" in out
-    assert out.count("уже настроено") == 2
-    assert "CTF{" not in out
-    after = {code: (card.flag_hash, card.revision) for code, card in rows(setup_env).items()}
-    assert after == before
+    assert run({**FLAGS, "WEB-01": "CTF{flag_from_a_new_env_file}"}) == 1
+    assert snapshot(setup_env) == before
+    captured = capsys.readouterr()
+    assert "WEB-01: флаг в карточке не совпадает" in captured.out
+    assert "турнир не готов" in captured.err
+    assert "WEB01_FLAG" in captured.err and "Новый флаг" in captured.err
+    assert captured.out.count("уже настроено") == 2
+    assert_no_flags(captured.out + captured.err)
 
 
-def test_edited_draft_is_left_alone(setup_env):
+def test_hidden_edited_card_fails_and_is_not_touched(setup_env, capsys):
     service.seed_case()
     task = next(t for t in service.catalog(1, include_hidden=True) if t["code"] == "WEB-02")
     service.save_challenge(3, {"description": "Свой текст", "expected_revision": task["revision"]}, task["id"])
+    assert run() == 1
+    cards = rows(setup_env)
+    assert cards["WEB-02"].description == "Свой текст"
+    assert not cards["WEB-02"].is_published
+    assert cards["WEB-01"].is_published and cards["CRYPTO-01"].is_published
+    captured = capsys.readouterr()
+    assert "WEB-02: изменено вручную" in captured.out
+    assert "Опубликовать задание" in captured.err
+    assert_no_flags(captured.out + captured.err)
+
+
+def test_admin_username_is_normalized_like_bootstrap(setup_env, monkeypatch):
+    monkeypatch.setenv("ADMIN_USERNAME", "  Admin ")
     assert run() == 0
-    card = rows(setup_env)["WEB-02"]
-    assert card.description == "Свой текст"
-    assert not card.is_published
+    assert all(card.is_published for card in rows(setup_env).values())
 
 
 @pytest.mark.parametrize("payload", ["not json", "[]", json.dumps({"WEB-01": "CTF{x_valid_flag}"}),
@@ -87,7 +107,7 @@ def test_edited_draft_is_left_alone(setup_env):
 def test_bad_input_is_rejected_without_changes(setup_env, payload, capsys):
     assert setup_case.main(io.StringIO(payload)) == 1
     assert rows(setup_env) == {}
-    assert "CTF{" not in capsys.readouterr().err.replace("CTF{...}", "")
+    assert_no_flags(capsys.readouterr().err)
 
 
 def test_missing_admin_is_reported(setup_env, monkeypatch, capsys):

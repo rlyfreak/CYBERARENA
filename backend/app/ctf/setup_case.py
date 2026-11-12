@@ -2,9 +2,10 @@
 
 Flags are read from stdin as a JSON object such as {"WEB-01": "CTF{...}", ...}.
 They are never accepted as arguments and never printed. Cards that are already
-published or edited by an administrator are left untouched, so the command can
-be repeated safely; a published card whose stored flag differs from the supplied
-one is reported but not changed. Run it inside the app container:
+published or edited by an administrator are never overwritten. If such a card
+does not match the supplied flags, or an edited card is still hidden, the
+command reports what to fix and exits with code 1, so setup never claims success
+for a tournament that is not ready. Run it inside the app container:
 
     docker compose exec -T app python -m app.ctf.setup_case
 """
@@ -56,6 +57,21 @@ CARDS = {
     },
 }
 
+FLAG_SOURCE = {
+    'WEB-01': 'WEB01_FLAG, который получает лаборатория (из .env)',
+    'WEB-02': 'флагом, восстановленным из files/web-02/',
+    'CRYPTO-01': 'флагом, восстановленным из files/crypto-01/challenge.txt',
+}
+
+FLAG_FIX = {
+    'WEB-01': ('верните в .env прежнее значение WEB01_FLAG либо задайте в карточке новый флаг '
+               'через «Управление» (поле «Новый флаг») и запустите установку снова'),
+    'WEB-02': ('проверьте, не менялись ли материалы в files/web-02/, и задайте в карточке верный '
+               'флаг через «Управление»'),
+    'CRYPTO-01': ('проверьте, не менялся ли files/crypto-01/challenge.txt, и задайте в карточке '
+                  'верный флаг через «Управление»'),
+}
+
 
 class SetupError(Exception):
     pass
@@ -75,7 +91,8 @@ def read_flags(stream):
 
 
 def find_admin_id():
-    username = os.environ.get('ADMIN_USERNAME', 'admin')
+    # Same normalization as bootstrap_admin(), which creates the account.
+    username = os.environ.get('ADMIN_USERNAME', 'admin').strip().lower()
     with SessionLocal() as db:
         admin = db.scalar(select(User).where(User.username == username))
         if admin is None or not admin.is_admin:
@@ -85,24 +102,32 @@ def find_admin_id():
 
 def stored_flag_matches(code, flag):
     with SessionLocal() as db:
-        encoded = db.scalar(select(Challenge.flag_hash).where(Challenge.code == code))
-    return not security.supported_hash(encoded or '') or security.verify_flag(flag, encoded)
+        encoded = db.scalar(select(Challenge.flag_hash).where(Challenge.code == code)) or ''
+    return security.supported_hash(encoded) and security.verify_flag(flag, encoded)
 
 
 def configure(admin_id, flags, out=print):
+    """Configure untouched drafts; return a list of problems that block the tournament."""
     service.seed_case()
     tasks = {task['code']: task for task in service.catalog(admin_id, limit=100, include_hidden=True)}
-    configured = 0
+    problems = []
     for code, card in CARDS.items():
         task = tasks.get(code)
         if task is None:
             raise SetupError(f'{code}: черновик не создан')
-        if task['is_published'] or task['description'] != DRAFT_TEXT:
-            if task['is_published'] and not stored_flag_matches(code, flags[code]):
-                source = 'WEB01_FLAG из .env' if code == 'WEB-01' else 'флагом из материалов'
-                out(f'{code}: ВНИМАНИЕ: флаг в карточке не совпадает с {source}; карточка не изменена')
-            else:
+        if task['is_published']:
+            if stored_flag_matches(code, flags[code]):
                 out(f'{code}: уже настроено, пропускаю')
+            else:
+                out(f'{code}: флаг в карточке не совпадает, карточка не изменена')
+                problems.append(f'{code}: флаг в опубликованной карточке не совпадает с '
+                                f'{FLAG_SOURCE[code]}. Исправление: {FLAG_FIX[code]}.')
+            continue
+        if task['description'] != DRAFT_TEXT:
+            out(f'{code}: изменено вручную и скрыто, карточка не изменена')
+            problems.append(f'{code}: карточка изменена вручную, но не опубликована, поэтому скрипт '
+                            'её не трогает. Исправление: проверьте карточку в «Управлении», задайте '
+                            'флаг и поставьте галочку «Опубликовать задание».')
             continue
         payload = schemas.ChallengeUpdate.model_validate({
             **card,
@@ -112,19 +137,23 @@ def configure(admin_id, flags, out=print):
         })
         service.save_challenge(admin_id, payload.model_dump(exclude_unset=True), task['id'])
         out(f'{code}: настроено и опубликовано')
-        configured += 1
-    return configured
+    return problems
 
 
 def main(stream=None):
     try:
         flags = read_flags(stream or sys.stdin)
-        configure(find_admin_id(), flags)
+        problems = configure(find_admin_id(), flags)
     except service.CtfError as exc:
         print(f'Ошибка: {exc.message}', file=sys.stderr)
         return 1
     except SetupError as exc:
         print(f'Ошибка: {exc}', file=sys.stderr)
+        return 1
+    if problems:
+        print('Установка не завершена: турнир не готов.', file=sys.stderr)
+        for problem in problems:
+            print(f'- {problem}', file=sys.stderr)
         return 1
     return 0
 
