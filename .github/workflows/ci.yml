@@ -19,7 +19,7 @@ concurrency:
 jobs:
   backend-quality:
     name: Backend / Python 3.12
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -67,7 +67,7 @@ jobs:
 
   docker-ctf:
     name: CTF / Docker, persistence and isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     env:
