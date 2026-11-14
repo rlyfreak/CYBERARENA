@@ -3,9 +3,10 @@
 Flags are read from stdin as a JSON object such as {"WEB-01": "CTF{...}", ...}.
 They are never accepted as arguments and never printed. Cards that are already
 published or edited by an administrator are never overwritten. If such a card
-does not match the supplied flags, or an edited card is still hidden, the
-command reports what to fix and exits with code 1, so setup never claims success
-for a tournament that is not ready. Run it inside the app container:
+does not match the supplied flags, an edited card is still hidden, or a published
+card's material link does not open through nginx, the command reports what to fix
+and exits with code 1, so setup never claims success for a tournament that is not
+ready. Run it inside the app container:
 
     docker compose exec -T app python -m app.ctf.setup_case
 
@@ -17,6 +18,9 @@ from the container environment opens the administrator account: 0 yes, 2 no,
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from sqlalchemy import select
 
@@ -78,8 +82,54 @@ FLAG_FIX = {
 }
 
 
+# Participants open materials through nginx; the app container reaches it on app-net.
+NGINX_ORIGIN = 'http://nginx'
+# Everything else on nginx is proxied to the platform itself (login page, catalog).
+MATERIAL_ROOTS = ('files', 'lab')
+
+
 class SetupError(Exception):
     pass
+
+
+def fetch_status(url):
+    """HTTP status of a GET through nginx, following its relative redirects."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(url, timeout=10) as response:
+            return response.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+
+
+def resource_problem(code, resource_url):
+    """Why participants cannot open this card's materials, or None if they can."""
+    fix = 'Исправление: укажите верную ссылку в карточке через «Управление» и запустите установку снова.'
+    if not resource_url:
+        return f'{code}: в опубликованной карточке нет ссылки на материалы. {fix}'
+    if urllib.parse.urlsplit(resource_url).path.split('/')[1] not in MATERIAL_ROOTS:
+        return (f'{code}: ссылка {resource_url} ведёт не на материалы задания '
+                f'(нужен путь в /files/ или /lab/). {fix}')
+    url = NGINX_ORIGIN + urllib.parse.quote(resource_url, safe="/:?#[]@!$&'()*+,;=%~")
+    try:
+        status = fetch_status(url)
+    except (OSError, ValueError):
+        return f'{code}: ссылка {resource_url} не открывается: nginx не отвечает. {fix}'
+    if status != 200:
+        return f'{code}: ссылка {resource_url} не открывается (HTTP {status}). {fix}'
+    return None
+
+
+def check_resources(admin_id, out=print):
+    """Problems with material links of published case cards; cards are never changed."""
+    problems = []
+    for task in service.catalog(admin_id, limit=100, include_hidden=True):
+        if task['code'] in CARDS and task['is_published']:
+            problem = resource_problem(task['code'], task['resource_url'])
+            if problem:
+                out(f"{task['code']}: ссылка на материалы не открывается, карточка не изменена")
+                problems.append(problem)
+    return problems
 
 
 def read_flags(stream):
@@ -183,7 +233,9 @@ def configure(admin_id, flags, out=print):
 def main(stream=None):
     try:
         flags = read_flags(stream or sys.stdin)
-        problems = configure(find_admin_id(), flags)
+        admin_id = find_admin_id()
+        problems = configure(admin_id, flags)
+        problems += check_resources(admin_id)
     except service.CtfError as exc:
         print(f'Ошибка: {exc.message}', file=sys.stderr)
         return 1

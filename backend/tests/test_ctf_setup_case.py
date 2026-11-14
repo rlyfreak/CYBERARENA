@@ -1,5 +1,7 @@
+import http.server
 import io
 import json
+import threading
 
 import pytest
 from sqlalchemy import select
@@ -15,8 +17,28 @@ FLAGS = {
 }
 
 
+CARD_URLS = {
+    "http://nginx/lab/",
+    "http://nginx/files/web-02/",
+    "http://nginx/files/crypto-01/challenge.txt",
+}
+
+
 @pytest.fixture
-def setup_env(ctf_db, monkeypatch):
+def nginx(monkeypatch):
+    """Stub for nginx as the app container sees it: the case materials answer 200."""
+    state = {"ok": set(CARD_URLS), "requested": []}
+
+    def fetch(url):
+        state["requested"].append(url)
+        return 200 if url in state["ok"] else 404
+
+    monkeypatch.setattr(setup_case, "fetch_status", fetch)
+    return state
+
+
+@pytest.fixture
+def setup_env(ctf_db, monkeypatch, nginx):
     factory, _ = ctf_db
     monkeypatch.setattr(setup_case, "SessionLocal", factory)
     monkeypatch.setenv("ADMIN_USERNAME", "admin")
@@ -99,6 +121,10 @@ def test_hidden_edited_card_fails_and_is_not_touched(setup_env, capsys):
 
 def edit_draft(code, **changes):
     service.seed_case()
+    edit_card(code, **changes)
+
+
+def edit_card(code, **changes):
     task = next(t for t in service.catalog(1, include_hidden=True) if t["code"] == code)
     payload = schemas.ChallengeUpdate.model_validate({**changes, "expected_revision": task["revision"]})
     service.save_challenge(3, payload.model_dump(exclude_unset=True), task["id"])
@@ -184,3 +210,72 @@ def test_check_admin_password_reports_missing_admin(admin_with_password, monkeyp
     monkeypatch.setenv("ADMIN_USERNAME", "nobody")
     assert setup_case.check_admin_password() == 1
     assert "не найден" in capsys.readouterr().err
+
+
+def test_all_published_links_are_opened_before_success(setup_env, nginx):
+    assert run() == 0
+    assert set(nginx["requested"]) == CARD_URLS
+
+
+@pytest.mark.parametrize("resource_url, reason", [
+    (None, "нет ссылки на материалы"),
+    ("/files/web-02/missing.html", "HTTP 404"),
+    ("/challenges", "ведёт не на материалы задания"),
+])
+def test_broken_link_of_published_card_fails_and_card_is_kept(setup_env, nginx, capsys, resource_url, reason):
+    assert run() == 0
+    edit_card("WEB-02", resource_url=resource_url)
+    before = snapshot(setup_env)
+    capsys.readouterr()
+    assert run() == 1
+    assert snapshot(setup_env) == before
+    assert rows(setup_env)["WEB-02"].resource_url == resource_url
+    captured = capsys.readouterr()
+    assert "WEB-02: ссылка на материалы не открывается, карточка не изменена" in captured.out
+    assert "турнир не готов" in captured.err and reason in captured.err and "«Управление»" in captured.err
+    assert "WEB-01:" not in captured.err and "CRYPTO-01:" not in captured.err
+    assert_no_flags(captured.out + captured.err)
+
+
+def test_admin_link_to_other_existing_material_is_accepted(setup_env, nginx):
+    assert run() == 0
+    edit_card("WEB-02", resource_url="/files/web-02/index.html")
+    nginx["ok"].add("http://nginx/files/web-02/index.html")
+    assert run() == 0
+    assert rows(setup_env)["WEB-02"].resource_url == "/files/web-02/index.html"
+
+
+def test_unreachable_nginx_fails(setup_env, monkeypatch, capsys):
+    def refuse(url):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(setup_case, "fetch_status", refuse)
+    assert run() == 1
+    assert "nginx не отвечает" in capsys.readouterr().err
+
+
+def test_fetch_status_reads_real_http_answers(monkeypatch):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/files/web-02":
+                self.send_response(301)
+                self.send_header("Location", "/files/web-02/")
+            else:
+                self.send_response(200 if self.path in ("/files/web-02/", "/lab/") else 404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setattr(setup_case, "NGINX_ORIGIN", f"http://127.0.0.1:{server.server_port}")
+        assert setup_case.resource_problem("WEB-02", "/files/web-02/") is None
+        assert setup_case.resource_problem("WEB-02", "/files/web-02") is None
+        assert setup_case.resource_problem("WEB-01", "/lab/") is None
+        assert "HTTP 404" in setup_case.resource_problem("WEB-02", "/files/web-02/gone.html")
+    finally:
+        server.shutdown()
+        server.server_close()
