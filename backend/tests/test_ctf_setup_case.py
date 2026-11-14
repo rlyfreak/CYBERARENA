@@ -4,8 +4,9 @@ import json
 import pytest
 from sqlalchemy import select
 
-from app.ctf import security, service, setup_case
-from app.models import Challenge
+from app.auth.security import hash_password
+from app.ctf import schemas, security, service, setup_case
+from app.models import Challenge, User
 
 FLAGS = {
     "WEB-01": "CTF{setup_web_one_flag}",
@@ -96,6 +97,43 @@ def test_hidden_edited_card_fails_and_is_not_touched(setup_env, capsys):
     assert_no_flags(captured.out + captured.err)
 
 
+def edit_draft(code, **changes):
+    service.seed_case()
+    task = next(t for t in service.catalog(1, include_hidden=True) if t["code"] == code)
+    payload = schemas.ChallengeUpdate.model_validate({**changes, "expected_revision": task["revision"]})
+    service.save_challenge(3, payload.model_dump(exclude_unset=True), task["id"])
+
+
+@pytest.mark.parametrize("changes", [
+    {"title": "Своё название", "resource_url": "/files/web-02/other.html"},
+    {"title": "Своё название"},
+    {"difficulty": "hard"},
+    {"flag": "CTF{flag_set_by_admin}"},
+])
+def test_draft_edited_without_changing_description_is_not_overwritten(setup_env, capsys, changes):
+    edit_draft("WEB-02", **changes)
+    before = snapshot(setup_env)["WEB-02"]
+    edited = rows(setup_env)["WEB-02"]
+    assert edited.description == setup_case.DRAFT_TEXT
+    assert run() == 1
+    card = rows(setup_env)["WEB-02"]
+    assert snapshot(setup_env)["WEB-02"] == before
+    assert not card.is_published
+    for name, value in changes.items():
+        if name != "flag":
+            assert getattr(card, name) == value
+    assert rows(setup_env)["WEB-01"].is_published and rows(setup_env)["CRYPTO-01"].is_published
+    captured = capsys.readouterr()
+    assert "WEB-02: изменено вручную" in captured.out
+    assert_no_flags(captured.out + captured.err)
+
+
+def test_untouched_seeded_drafts_are_configured(setup_env):
+    service.seed_case()
+    assert all(setup_case.is_untouched_draft(t) for t in service.catalog(1, include_hidden=True))
+    assert run() == 0
+
+
 def test_admin_username_is_normalized_like_bootstrap(setup_env, monkeypatch):
     monkeypatch.setenv("ADMIN_USERNAME", "  Admin ")
     assert run() == 0
@@ -115,3 +153,34 @@ def test_missing_admin_is_reported(setup_env, monkeypatch, capsys):
     assert run() == 1
     assert "не найден" in capsys.readouterr().err
     assert rows(setup_env) == {}
+
+
+ADMIN_PASSWORD = "Initial-admin-pass-2026"
+
+
+@pytest.fixture
+def admin_with_password(setup_env, monkeypatch):
+    with setup_env.begin() as db:
+        db.get(User, 3).password_hash = hash_password(ADMIN_PASSWORD)
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PASSWORD)
+    return setup_env
+
+
+def test_check_admin_password_accepts_effective_initial_password(admin_with_password, capsys):
+    assert setup_case.check_admin_password() == 0
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("effective", ["Changed-in-env-or-dotenv-1", ""])
+def test_check_admin_password_rejects_value_that_does_not_open_account(admin_with_password, monkeypatch,
+                                                                       capsys, effective):
+    monkeypatch.setenv("ADMIN_PASSWORD", effective)
+    assert setup_case.check_admin_password() == 2
+    captured = capsys.readouterr()
+    assert ADMIN_PASSWORD not in captured.out + captured.err
+
+
+def test_check_admin_password_reports_missing_admin(admin_with_password, monkeypatch, capsys):
+    monkeypatch.setenv("ADMIN_USERNAME", "nobody")
+    assert setup_case.check_admin_password() == 1
+    assert "не найден" in capsys.readouterr().err

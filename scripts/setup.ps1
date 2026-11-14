@@ -35,9 +35,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Имя проекта задано полем name в compose.yaml; том базы называется <проект>_db-data.
-$ComposeProject = 'cyberarena'
-$DataVolume = 'cyberarena_db-data'
+# Имена проекта и тома базы берутся у Docker Compose (Set-ComposeNames): COMPOSE_PROJECT_NAME
+# в окружении или в .env меняет их, и проверять или удалять нужно именно используемый том.
+$ComposeProject = $null
+$DataVolume = $null
 
 # ----------------------------------------------------------------- генерация
 
@@ -209,14 +210,17 @@ function Invoke-Docker([string]$What, [scriptblock]$Command) {
     if ($code -ne 0) { throw "${What}: ошибка (код $code). Подробности выше." }
 }
 
-function Get-ComposeConfig {
+function Get-ComposeConfig([switch]$NoInterpolate) {
+    $arguments = @('compose', 'config', '--format', 'json')
+    # Без подстановки переменных: работает и без .env, секреты не читаются.
+    if ($NoInterpolate) { $arguments += '--no-interpolate' }
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     $previousEncoding = $null
     try {
         # docker пишет UTF-8; без этого Windows PowerShell исказит не-ASCII символы.
         try { $previousEncoding = [Console]::OutputEncoding; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { $previousEncoding = $null }
-        $lines = docker compose config --format json 2>$null
+        $lines = & docker @arguments 2>$null
         $code = $LASTEXITCODE
     } finally {
         if ($previousEncoding) { try { [Console]::OutputEncoding = $previousEncoding } catch { } }
@@ -224,6 +228,15 @@ function Get-ComposeConfig {
     }
     if ($code -ne 0) { throw 'Не удалось прочитать настройки docker compose.' }
     return (($lines | Out-String) | ConvertFrom-Json)
+}
+
+function Set-ComposeNames {
+    $config = Get-ComposeConfig -NoInterpolate
+    $script:ComposeProject = [string]$config.name
+    $script:DataVolume = [string]$config.volumes.'db-data'.name
+    if (-not $script:ComposeProject -or -not $script:DataVolume) {
+        throw 'Не удалось определить имя проекта и тома базы из docker compose config.'
+    }
 }
 
 function Test-DataVolume {
@@ -303,6 +316,49 @@ function Test-Materials([string]$Root, [string]$BaseUrl) {
     }
 }
 
+# --------------------------------------------------------------- подсказки
+
+# Код 0: ADMIN_PASSWORD, который Compose передал приложению, открывает учётную запись
+# администратора; 2: не открывает (администратор создан раньше или пароль уже сменён).
+function Test-AdminPassword {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        docker compose exec -T app python -m app.ctf.setup_case --check-admin-password | Out-Host
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+    if ($code -eq 0) { return $true }
+    if ($code -eq 2) { return $false }
+    throw 'Не удалось проверить пароль администратора (подробности выше).'
+}
+
+# Docker Compose берёт ADMIN_PASSWORD из окружения раньше, чем из .env, а приложение
+# применяет его только при создании администратора.
+function Get-PasswordHint($Settings, [string]$GeneratedPassword, [bool]$PasswordWorks) {
+    if (-not $PasswordWorks) {
+        return ('Администратор был создан раньше: входите с паролем, заданным при первой установке, ' +
+                'или с тем, на который его сменили. ADMIN_PASSWORD из .env и из переменных окружения ' +
+                'на уже созданную учётную запись не влияет.')
+    }
+    $firstLogin = 'При первом входе приложение попросит сменить пароль.'
+    if ($GeneratedPassword -and $Settings.AdminPassword -ceq $GeneratedPassword) {
+        return "Пароль администратора: $GeneratedPassword`nЗапишите его: повторно он не показывается. $firstLogin"
+    }
+    if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable('ADMIN_PASSWORD'))) {
+        $text = ('Пароль администратора — значение переменной окружения ADMIN_PASSWORD в этом окне: ' +
+                 'Docker Compose использует её вместо значения из .env.')
+        if ($GeneratedPassword) { $text += ' Пароль, записанный в .env, не используется.' }
+        return "$text $firstLogin"
+    }
+    if ($GeneratedPassword) {
+        return ('Приложение получило ADMIN_PASSWORD не из созданного .env. Проверьте, откуда Docker Compose ' +
+                'берёт эту переменную, прежде чем входить.')
+    }
+    return "Пароль администратора — значение ADMIN_PASSWORD в файле .env. $firstLogin"
+}
+
 # ------------------------------------------------------------------- основной
 
 function Start-Setup {
@@ -313,6 +369,7 @@ function Start-Setup {
         throw ('Docker не отвечает. Установите Docker Desktop, запустите его, дождитесь статуса ' +
                '"Engine running" (зелёный значок внизу слева) и запустите скрипт снова.')
     }
+    Set-ComposeNames
 
     $envExists = Test-Path -LiteralPath (Join-Path $root '.env')
     if ($ResetData) {
@@ -381,18 +438,14 @@ function Start-Setup {
         $ErrorActionPreference = $previous
     }
     if ($code -ne 0) { throw 'Установка не завершена: задания не готовы. Причины и что исправить — выше.' }
+    $passwordWorks = Test-AdminPassword
 
     $shownHost = $settings.HostIp
     if ($shownHost -eq '127.0.0.1') { $shownHost = 'localhost' }
     Write-Host ''
     Write-Host "Готово: платформа работает на http://${shownHost}:8080"
     Write-Host ('Администратор: ' + $settings.AdminUsername)
-    if ($generatedPassword) {
-        Write-Host "Пароль администратора: $generatedPassword"
-        Write-Host 'Запишите его: повторно он не показывается. При первом входе приложение попросит сменить пароль.'
-    } else {
-        Write-Host 'Пароль администратора указан в вашем файле .env (если вы его уже меняли, используйте новый).'
-    }
+    Write-Host (Get-PasswordHint $settings $generatedPassword $passwordWorks)
 }
 
 # Выполняется только при запуске файла; при подключении через точку ("dot-source") функции только загружаются.
