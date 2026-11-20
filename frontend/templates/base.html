@@ -18,7 +18,53 @@
 :root[data-theme="light"]{color-scheme:light;--bg:#f5f7fc;--header:#fff;--surface:#fff;--surface-2:#f0f3fa;--surface-3:#e9edf7;--line:#dbe1ee;--text:#14213b;--muted:#61708c;--accent:#7564e8;--accent-strong:#624ee0;--accent-soft:#6e5dde;--ok:#1cab72;--ok-bg:#e9f8f1;--warn:#b87b08;--warn-bg:#fff5db;--danger:#d95757;--danger-bg:#fff0ef;--shadow:0 18px 50px rgba(55,68,105,.09)}
 *{box-sizing:border-box}html{min-width:320px;scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:var(--text-body)/1.55 Inter,"Segoe UI",system-ui,sans-serif;transition:background-color .18s,color .18s}button,input,textarea,select{font:inherit}a{color:var(--accent-soft);text-decoration:none}a:hover{text-decoration:none;color:var(--text)}
 .shell{width:min(1180px,calc(100% - 48px));margin-inline:auto}.site-header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--header) 94%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}.nav-shell{min-height:74px;display:flex;align-items:center;gap:30px}.brand{position:relative;display:inline-flex;align-items:center;padding-left:36px;color:var(--text);font-size:15px;font-weight:850;letter-spacing:.015em;margin-right:auto}.brand:hover{color:var(--text)}.brand:before{content:"";position:absolute;left:3px;width:24px;height:24px;transform:rotate(45deg);border-radius:5px;background:var(--accent)}.brand:after{content:"";position:absolute;left:10px;width:9px;height:9px;transform:rotate(45deg);border:3px solid var(--bg);border-left-color:transparent;border-radius:2px}.nav-links{display:flex;align-items:center;gap:24px;min-width:0}.nav-links>a{position:relative;color:var(--muted);font-size:14px;font-weight:650;padding:27px 0 25px}.nav-links>a:hover,.nav-links>a.active{color:var(--text)}.nav-links>a.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}.nav-links>a.button{padding:8px 13px;color:#fff}.nav-links>a.button:after{display:none}.nav-form{display:inline;margin:0}.nav-button{appearance:none;border:0;background:none;color:var(--muted);padding:8px 0;font-weight:650;cursor:pointer}.nav-button:hover{color:var(--text)}
-.theme-switch{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface);color:var(--text);font-size:12px;font-weight:750;cursor:pointer}.theme-switch:hover{border-color:var(--accent)}.theme-icon{width:18px;height:18px;display:inline-grid;place-items:center;flex:0 0 18px;border-radius:50%;background:var(--accent);color:#fff}.theme-icon svg{display:block;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.theme-light{display:none}:root[data-theme="light"] .theme-light{display:inline-flex}:root[data-theme="light"] .theme-dark{display:none}
+.theme-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.theme-switch:hover { border-color: var(--accent); }
+.theme-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+}
+.theme-icon svg {
+  display: block;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.theme-icon .theme-sun,
+:root[data-theme="light"] .theme-icon .theme-moon { display: none; }
+:root[data-theme="light"] .theme-icon .theme-sun { display: block; }
+
+/* Both labels size the same grid cell so the button keeps its width. */
+.theme-labels { display: grid; white-space: nowrap; }
+.theme-labels > span { grid-area: 1 / 1; }
+.theme-labels .theme-light-label,
+:root[data-theme="light"] .theme-dark-label { visibility: hidden; }
+:root[data-theme="light"] .theme-light-label { visibility: visible; }
 main{padding:var(--space-6) 0 80px;min-height:calc(100vh - 74px)}h1,h2,h3{font-family:Manrope,Inter,"Segoe UI",system-ui,sans-serif;line-height:1.15;margin:0 0 var(--space-2);letter-spacing:-.025em}h1{font-size:var(--text-h1)}h2{font-size:var(--text-h2)}h3{font-size:var(--text-h3)}p{margin:0 0 var(--space-3)}.eyebrow{color:var(--accent-soft);text-transform:uppercase;letter-spacing:.13em;font-size:var(--text-xs);font-weight:850}.lead{max-width:720px;color:var(--muted);font-size:var(--text-lead)}.muted,.meta,small{color:var(--muted)}.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-4);margin-bottom:var(--space-5)}.section-spaced{margin-top:var(--space-5)}.accent-text{color:var(--accent-soft)}
 .card,article{margin:var(--space-3) 0;padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:0 1px 0 rgba(255,255,255,.02)}.card-flat{box-shadow:none}.card-accent{position:relative;overflow:hidden}.card-accent:before{content:"";position:absolute;left:var(--space-4);top:0;width:68px;height:4px;border-radius:0 0 4px 4px;background:var(--accent)}.grid{display:grid;gap:20px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .button,button.primary{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:11px 18px;border:1px solid transparent;border-radius:11px;background:var(--accent-strong);color:#fff;font-weight:800;cursor:pointer;transition:transform .15s,background .15s,border-color .15s}.button:hover,button.primary:hover{color:#fff;background:var(--accent);transform:translateY(-1px)}.button.secondary,button.secondary{background:transparent;color:var(--text);border-color:var(--line)}.button.secondary:hover,button.secondary:hover{background:var(--surface-2);border-color:var(--accent);color:var(--text)}.button.danger-button,button.danger-button{background:var(--danger);color:#fff}.button.small{min-height:36px;padding:8px 13px;font-size:13px}
@@ -32,24 +78,62 @@ label{display:block;margin:14px 0 7px;color:var(--muted);font-size:14px;font-wei
 .auth-page{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,470px);gap:64px;align-items:center;min-height:calc(100vh - 190px)}.auth-intro h1{font-size:clamp(46px,6vw,70px)}.auth-intro .lead{margin:22px 0}.auth-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:32px}.auth-step{padding:18px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}.auth-step b{display:block;color:var(--accent-soft);font-size:18px}.auth-step span{font-size:13px;color:var(--muted)}.auth-card{margin:0;padding:32px}.auth-card h2{font-size:32px}.auth-card button{width:100%;margin-top:10px}.auth-note{text-align:center;color:var(--muted);font-size:14px;margin-top:18px}
 .profile-hero{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center}.avatar{width:72px;height:72px;display:grid;place-items:center;border-radius:22px;background:var(--accent);color:#fff;font-size:28px;font-weight:900}.profile-actions{display:flex;gap:10px}.profile-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px}.info-list{display:grid;gap:12px}.info-row{display:flex;justify-content:space-between;gap:20px;padding-bottom:12px;border-bottom:1px solid var(--line)}.info-row:last-child{padding-bottom:0;border-bottom:0}.quick-links{display:grid;gap:10px}.quick-link{display:flex;align-items:center;justify-content:space-between;padding:14px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);color:var(--text);font-weight:750}.quick-link:hover{border-color:var(--accent)}
 .admin-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin:var(--space-4) 0}.admin-stat{padding:var(--space-4);border:1px solid var(--line);border-radius:14px;background:var(--surface)}.admin-stat strong{display:block;font-size:30px}.admin-stat span{color:var(--muted);font-size:var(--text-sm)}.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}.danger{border-color:color-mix(in srgb,var(--danger) 46%,var(--line));background:var(--danger-bg)}.danger-action{margin-top:var(--space-2)}.form-card{max-width:900px;margin-inline:auto}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--space-3)}.form-grid .full{grid-column:1/-1}.empty-state{text-align:center;padding:var(--space-6) var(--space-4);color:var(--muted)}.error-card{max-width:680px;margin:60px auto;text-align:center}.error-icon{margin:0 auto var(--space-3)}.centered-lead{margin:0 auto var(--space-4)}.profile-title{font-size:32px;margin-bottom:var(--space-1)}.register-visual{min-height:220px;margin-top:var(--space-4)}.register-window{width:190px}.register-code{font-size:45px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-@media(max-width:1100px){.nav-links{gap:14px}.theme-label{display:none}}
+@media (max-width: 1100px) {
+  .nav-shell, .nav-links { gap: 14px; }
+  .theme-labels { display: none; }
+}
 @media(max-width:900px){.shell{width:min(100% - 32px,1180px)}.hero,.auth-page,.challenge-layout,.profile-grid{grid-template-columns:1fr}.hero{gap:28px}.challenge-grid{grid-template-columns:1fr 1fr}.challenge-aside{position:static}.catalog-top{grid-template-columns:1fr}.auth-steps{grid-template-columns:1fr}.profile-hero{grid-template-columns:auto 1fr}.profile-actions{grid-column:1/-1}.admin-grid{grid-template-columns:1fr}}
-@media(max-width:760px){.site-header{position:relative}.nav-shell{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 16px;padding:14px 0 0}.brand{min-height:40px;margin:0}.nav-links{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-start;gap:20px;width:100%;padding:0 0 10px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:none;white-space:nowrap}.nav-links::-webkit-scrollbar{display:none}.nav-links>a{flex:0 0 auto;padding:8px 0}.nav-links>a.active:after{bottom:0}.nav-form{flex:0 0 auto}.theme-switch{position:absolute;top:15px;right:16px;width:40px;min-width:40px;height:40px;padding:0}.theme-label{display:none}}
+@media (max-width: 760px) {
+  .site-header { position: relative; }
+  .nav-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px 16px;
+    padding: 14px 0 0;
+  }
+  .nav-shell .brand { grid-area: 1 / 1; justify-self: start; margin: 0; }
+  .theme-switch { grid-area: 1 / 2; width: 40px; height: 40px; padding: 0; }
+  .nav-links {
+    grid-area: 2 / 1 / auto / -1;
+    justify-content: flex-start;
+    gap: 20px;
+    padding-bottom: 10px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links > a { flex: none; padding: 8px 0; }
+  .nav-links > a.active::after { bottom: 0; }
+  .nav-form { flex: none; }
+}
 @media(max-width:640px){main{padding-top:34px}.hero-copy h1,.auth-intro h1{font-size:43px}.hero-visual{min-height:300px}.feature-strip,.challenge-grid,.grid-2,.grid-3,.admin-stats,.form-grid{grid-template-columns:1fr}.section-head{align-items:flex-start;flex-direction:column}.profile-hero{grid-template-columns:1fr}.profile-actions{flex-direction:column}.resource-row{align-items:flex-start;flex-wrap:wrap}.resource-row .button{width:100%;margin-left:0}.auth-card{padding:24px}.auth-intro{display:none}.auth-page{display:block;min-height:auto}}
 </style>
 {% block head_extra %}{% endblock %}
 </head>
 <body>
-{% block header %}
-<header class="site-header"><nav aria-label="Навигация"><div class="shell nav-shell">
+<header class="site-header"><nav class="shell nav-shell" aria-label="Навигация">
 <a class="brand" href="/">CYBERARENA</a>
 <div class="nav-links">
+{% block nav_links %}
 {% if not user or not user.must_change_password %}<a class="{% if request.url.path.startswith('/challenges') %}active{% endif %}" href="/challenges">Задания</a>{% endif %}<a class="{% if request.url.path == '/leaderboard' %}active{% endif %}" href="/leaderboard">Рейтинг</a>
 {% if user %}{% if user.must_change_password %}<a class="active" href="/change-password">Сменить пароль</a>{% else %}<a class="{% if request.url.path == '/submissions' %}active{% endif %}" href="/submissions">Мои попытки</a><a class="{% if request.url.path == '/profile' %}active{% endif %}" href="/profile">Профиль</a>{% if user.is_admin %}<a class="{% if request.url.path.startswith('/admin') %}active{% endif %}" href="/admin">Управление</a>{% endif %}{% endif %}<form class="nav-form" action="/logout" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button" type="submit">Выйти</button></form>
 {% else %}<a class="{% if request.url.path == '/login' %}active{% endif %}" href="/login">Вход</a><a class="button small" href="/register">Регистрация</a>{% endif %}
-<button class="theme-switch" type="button" data-theme-toggle aria-label="Переключить цветовую тему"><span class="theme-icon theme-dark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 14.1A8.5 8.5 0 0 1 9.9 3.5 8.5 8.5 0 1 0 20.5 14.1Z"/></svg></span><span class="theme-icon theme-light" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span><span class="theme-label theme-dark">Тёмная тема</span><span class="theme-label theme-light">Светлая тема</span></button>
-</div></div></nav></header>
 {% endblock %}
+</div>
+<button class="theme-switch" type="button" data-theme-toggle aria-label="Переключить цветовую тему">
+  <span class="theme-icon" aria-hidden="true">
+    <svg class="theme-moon" viewBox="0 0 24 24"><path d="M20.5 14.1A8.5 8.5 0 0 1 9.9 3.5 8.5 8.5 0 1 0 20.5 14.1Z"/></svg>
+    <svg class="theme-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </span>
+  <span class="theme-labels" aria-hidden="true">
+    <span class="theme-dark-label">Тёмная тема</span>
+    <span class="theme-light-label">Светлая тема</span>
+  </span>
+</button>
+</nav></header>
 <main class="shell {% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
 <script>
 document.querySelectorAll('[data-theme-toggle]').forEach((button) => {button.addEventListener('click', () => {const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem('cyberarena-theme',next)}catch(_){}})});
