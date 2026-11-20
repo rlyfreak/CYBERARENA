@@ -94,6 +94,7 @@ jobs:
           docker run --rm --memory 512m --cpus 1 cyberarena-ctf-tests:local python backend/tests/benchmark_ctf.py
 
       - name: Configure WEB-01 test flag
+        id: web01_test_flag
         run: |
           python - <<'PY' >> "$GITHUB_ENV"
           import hashlib
@@ -163,11 +164,11 @@ jobs:
           python scripts/ctf_smoke.py lab-down
 
       - name: Proxy diagnostics on failure
-        if: failure()
+        if: failure() && steps.web01_test_flag.outcome == 'success'
         run: |
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check ps --all
           docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check logs --no-color --timestamps --tail 100 nginx lab-gateway
 
       - name: Clean up isolated stack
-        if: always()
+        if: always() && steps.web01_test_flag.outcome == 'success'
         run: docker compose --env-file /dev/null -f compose.ctf-test.yaml -p cyberarena-ctf-check down
