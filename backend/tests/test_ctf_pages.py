@@ -1,5 +1,6 @@
 import re
 import time
+from html.parser import HTMLParser
 
 import pytest
 from sqlalchemy import delete, select
@@ -18,10 +19,43 @@ def token(response):
     return match.group(1)
 
 
+class NavigationParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.found_navigation = False
+        self.in_navigation = False
+        self.labels = set()
+        self.label_parts = None
+
+    def handle_starttag(self, tag, attrs):
+        if self.found_navigation:
+            return
+        if tag == 'nav' and ('aria-label', 'Навигация') in attrs:
+            self.in_navigation = True
+        if self.in_navigation and tag in {'a', 'button'}:
+            if tag == 'button' and 'data-theme-toggle' in dict(attrs):
+                return
+            self.label_parts = []
+
+    def handle_data(self, data):
+        if self.label_parts is not None:
+            self.label_parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in {'a', 'button'} and self.label_parts is not None:
+            self.labels.add(''.join(self.label_parts).strip())
+            self.label_parts = None
+        if tag == 'nav' and self.in_navigation:
+            self.in_navigation = False
+            self.found_navigation = True
+
+
 def navigation(response):
-    match = re.search(r'<nav aria-label="Навигация">(.*?)</nav>', response.text, re.DOTALL)
-    assert match is not None
-    return set(re.findall(r'<(?:a|button)\b[^>]*>([^<]+)</(?:a|button)>', match.group(1)))
+    parser = NavigationParser()
+    parser.feed(response.text)
+    parser.close()
+    assert parser.found_navigation
+    return parser.labels
 
 
 GUEST_NAVIGATION = {'CYBERARENA', 'Рейтинг', 'Задания', 'Вход', 'Регистрация'}
@@ -115,8 +149,9 @@ def test_invalid_server_session_renders_guest_navigation(api, state):
     assert challenge.status_code == 303 and challenge.headers['location'] == '/login'
 
 
-def test_password_change_navigation_and_admin_redirect(api):
+def test_password_change_navigation_and_admin_redirect(api, monkeypatch):
     client, factory = api
+    monkeypatch.setattr(auth_routes, 'SessionLocal', factory)
     with factory.begin() as db:
         user = db.get(User, 1)
         assert user is not None
@@ -124,6 +159,12 @@ def test_password_change_navigation_and_admin_redirect(api):
 
     for path in ['/', '/leaderboard']:
         assert navigation(client.get(path)) == PASSWORD_CHANGE_NAVIGATION
+
+    page = client.get('/change-password')
+    assert page.status_code == 200
+    assert navigation(page) == {'CYBERARENA', 'Сменить пароль'}
+    assert token(page)
+
     for path in ['/challenges/1', '/admin']:
         response = client.get(path)
         assert response.status_code == 303
